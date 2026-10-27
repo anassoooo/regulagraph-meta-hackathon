@@ -93,3 +93,37 @@ def test_span_outside_page_is_rejected(make_pdf) -> None:
     doc = extract_pdf_bytes(make_pdf(PAGES), filename="c.pdf")
     with pytest.raises(EvidenceValidationError, match="outside"):
         evidence_from_span(doc.pages[0], 0, 10_000)
+
+
+# Raw-text guarantees ---------------------------------------------------------
+# These pin pypdf's exact "plain" output for simple content streams. If a pypdf
+# upgrade changes extracted text, these fail and stored evidence offsets must be
+# treated as invalid for documents extracted with the old version.
+
+def test_page_text_is_exact_extractor_output(make_pdf) -> None:
+    result = extract_pdf_bytes(make_pdf(PAGES), filename="c.pdf")
+    assert [p.text for p in result.pages] == PAGES  # no trailing newline, nothing added
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "La circulaire est abrog\u00e9e.",  # French accents kept as-is
+        "Article\u00a05 \u00ab\u00a0capital\u00a0\u00bb",  # non-breaking spaces not turned into spaces
+        "a  b   c\tz",  # repeated spaces and tabs not collapsed
+        "obliga-\ntion",  # line-end hyphenation not joined
+        "  leading and trailing  ",  # no stripping
+    ],
+)
+def test_text_is_not_normalised(make_pdf, text: str) -> None:
+    page = extract_pdf_bytes(make_pdf([text]), filename="c.pdf").pages[0]
+    assert page.text == text
+
+
+def test_owner_password_only_pdf_is_readable(make_pdf) -> None:
+    data = make_pdf(["Article 1"], owner_password="owner")
+    assert extract_pdf_bytes(data, filename="restricted.pdf").pages[0].text == "Article 1"
+
+
+def test_fixture_pdfs_are_byte_deterministic(make_pdf) -> None:
+    assert make_pdf(PAGES) == make_pdf(PAGES)

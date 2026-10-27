@@ -12,8 +12,9 @@ dependencies = [
     "uvicorn>=0.30",
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
-    # 1.x only: PyMuPDF 2.x adds onnxruntime/numpy layout dependencies we do not need.
-    "pymupdf>=1.24,<2",
+    # BSD-3-Clause. The crypto extra (cryptography: Apache-2.0 OR BSD-3-Clause) is needed
+    # to open AES-encrypted PDFs that only carry an owner password.
+    "pypdf[crypto]>=6,<7",
     "httpx>=0.27",
 ]
 

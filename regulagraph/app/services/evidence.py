@@ -1,7 +1,10 @@
 """Build and verify evidence against extracted page text.
 
-Quotes proposed by a model are only accepted if they occur verbatim on the
-cited page; this is the guard against fabricated citations.
+Scope of verification: these checks prove that a quoted passage exists
+verbatim at the cited document, page and character offsets. They do NOT
+prove that the passage semantically supports any inference or regulatory
+relationship that cites it, nor that it belongs to the provisions a
+relationship names. Semantic support checking is not implemented.
 """
 
 from collections.abc import Mapping

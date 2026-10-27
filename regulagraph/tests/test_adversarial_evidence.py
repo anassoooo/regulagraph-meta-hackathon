@@ -6,7 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.errors import EvidenceValidationError
-from app.models.schemas import Evidence, Inference, InvestigationReport, RegulatoryRelationship
+from app.models.schemas import Evidence, Inference, InvestigationReport, Provision, RegulatoryRelationship
 from app.services.document_parser import extract_pdf_bytes
 from app.services.evidence import evidence_from_span, locate_quote, verify_evidence, verify_report_evidence
 
@@ -197,3 +197,33 @@ def test_report_rejects_citation_to_evidence_outside_report(doc_a) -> None:
         InvestigationReport(
             question="q", generated_at=WHEN, document_ids=[doc_a.document.document_id], inferences=[inf]
         )
+
+
+# Known gap (docs/SPRINT2_REQUIREMENTS.md, R2) ---------------------------------
+
+def test_known_gap_real_quote_supporting_unrelated_relationship_is_accepted(doc_a) -> None:
+    """Quote verification proves existence only, not support or provision association.
+
+    This pins current behaviour so the gap stays visible; when R2 is implemented
+    this test must be changed to expect rejection.
+    """
+    doc_id = doc_a.document.document_id
+    unrelated_quote = locate_quote(doc_a.pages[0], "Les banques doivent declarer.")
+    art1 = Provision(document_id=doc_id, label="Article 1", text="x", page_start=1, page_end=1)
+    art2 = Provision(document_id=doc_id, label="Article 2", text="y", page_start=2, page_end=2)
+    rel = RegulatoryRelationship(
+        source_provision_id=art2.provision_id,
+        target_provision_id=art1.provision_id,
+        relation_type="repeals",
+        basis="extracted",
+        evidence_ids=[unrelated_quote.evidence_id],  # says nothing about repeal
+    )
+    report = InvestigationReport(
+        question="q",
+        generated_at=WHEN,
+        document_ids=[doc_id],
+        provisions=[art1, art2],
+        evidence=[unrelated_quote],
+        relationships=[rel],
+    )
+    verify_report_evidence(report, {doc_id: doc_a})  # passes today: existence only

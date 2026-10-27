@@ -1,6 +1,6 @@
 # RegulaGraph backend
 
-RegulaGraph is an AI agent that investigates the impact of public Central Bank of Tunisia (BCT) regulations. It traces how changes affect related provisions and produces impact reports in which every claim is backed by evidence.
+RegulaGraph is an AI agent that investigates the impact of public Central Bank of Tunisia (BCT) regulations. It traces how changes affect related provisions and produces impact reports in which every claim cites a source passage.
 
 **Status: Sprint 1 (foundation).** Done so far: the health endpoint, domain schemas, PDF extraction with page-level provenance, evidence verification and the Meta model adapter. The investigation agent, retrieval, graph storage and frontend are not built yet.
 
@@ -15,7 +15,7 @@ app/
   core/ids.py              deterministic, content-derived identifiers
   models/schemas.py        Document, ExtractedPage, Provision, Evidence, Inference,
                            RegulatoryRelationship, InvestigationReport
-  services/document_parser.py  PDF -> per-page text (PyMuPDF)
+  services/document_parser.py  PDF -> per-page text (pypdf)
   services/evidence.py         build/verify verbatim evidence spans (incl. whole reports)
   services/meta_client.py      ModelAdapter protocol + Meta Model API adapter
 tests/                     pytest suite (synthetic PDFs, mocked HTTP)
@@ -63,9 +63,29 @@ Tests make no network calls and need no API key. They generate their PDFs at run
 ## Design rules
 
 - **Evidence vs inference.** `Evidence` is a verbatim span of extracted page text: document, 1-based page number, character offsets and the quote. Models never produce it. `Inference` is model output; it must name its `model_id` and cite at least one evidence ID. A `RegulatoryRelationship` has `basis` set to `extracted` (stated in the text) or `inferred` (needs an `inference_id`). Both kinds need evidence.
-- **No fabricated citations.** `locate_quote` accepts a quote only if it appears verbatim on the cited page. `verify_evidence` re-checks a span against the page text. `InvestigationReport` rejects any reference that does not resolve to a document, provision, evidence item or inference in the same report.
+- **Quotes must exist in the source.** `locate_quote` accepts a quote only if it appears verbatim on the cited page. `verify_evidence` and `verify_report_evidence` re-check spans against the extracted page text. `InvestigationReport` rejects any reference that does not resolve to a document, provision, evidence item or inference in the same report.
+
+> **Scope of verification.** These checks prove that a cited passage **exists** at the stated location. They do **not** prove that the passage semantically supports the inference or relationship citing it. They also don't check that the passage belongs to the provisions a relationship names. A real quote attached to an unrelated claim passes every current check. Neither semantic support checking nor checking evidence against provisions is implemented. Both are planned for Sprint 2 (see [docs/SPRINT2_REQUIREMENTS.md](docs/SPRINT2_REQUIREMENTS.md)).
 - **Deterministic IDs.** IDs are hashes of content and position. For example, `doc_<sha256[:16]>` is computed from the PDF bytes, so it does not change if the file is renamed. If a supplied ID does not match its content, it is rejected.
 - **Structured errors.** Errors subclass `RegulaGraphError` (`code`, `message`, `details`) and are returned as `{"error": {...}}`.
+
+## PDF extraction
+
+[pypdf](https://pypi.org/project/pypdf/) (BSD-3-Clause) extracts text page by page with `extract_text(extraction_mode="plain")`. RegulaGraph stores that output unchanged. Accents, non-breaking spaces, repeated spaces, tabs, line breaks and hyphenation are kept, and tests pin this behaviour. Evidence offsets index into this stored text.
+
+How it differs from the PyMuPDF version (Sprint 1, commit `2b6bd13`):
+
+| Aspect | PyMuPDF 1.28 | pypdf 6.x |
+|---|---|---|
+| End of page text | Appended a trailing `
+` | No trailing newline |
+| Spacing and line breaks | MuPDF's text-line reconstruction | pypdf's own heuristics from text-positioning operators. On real PDFs (justified text, kerning) the spaces and breaks **may differ**; this has not been measured on BCT documents yet |
+| Reading order | Content-stream order | Content-stream order. Neither reorders multi-column layouts |
+| Encrypted PDFs | Opened files with only an owner password; rejected files needing a user password | Same behaviour. AES needs `cryptography`, installed through the `pypdf[crypto]` extra |
+| Damaged files | MuPDF repair | Lenient parsing (`strict=False`) logs warnings through the `pypdf` logger and may partly recover. Parse failures become `PDFExtractionError` |
+| Speed | Native C | Pure Python, expected to be slower (not benchmarked) |
+
+Document IDs are unchanged because they hash the PDF bytes. Page text and evidence offsets from the old parser are **not** compatible, but no extracted data had been stored yet. Extracted text also depends on the parser version, so pypdf is pinned to `<7`, and recording the extractor version is a Sprint 2 requirement.
 
 ## Meta Model API contract
 
@@ -74,7 +94,7 @@ Checked against the official docs on 2026-10-27 (see the docstring in `services/
 
 ## Licensing
 
-PyMuPDF is AGPL-3.0, and the repository does not have a licence yet. See [LICENSING.md](LICENSING.md) before any public deployment.
+All runtime dependencies are permissively licensed. Choosing a licence for the project itself is still an open decision. See [LICENSING.md](LICENSING.md).
 
 ## Source documents
 
