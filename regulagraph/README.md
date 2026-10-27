@@ -13,10 +13,12 @@ app/
   core/config.py           environment-based settings (pydantic-settings)
   core/errors.py           structured errors + FastAPI handler
   core/ids.py              deterministic, content-derived identifiers
-  models/schemas.py        Document, ExtractedPage, Provision, Evidence, Inference,
-                           RegulatoryRelationship, InvestigationReport
-  services/document_parser.py  PDF -> per-page text (pypdf)
+  models/schemas.py        Document, ExtractedDocument (+ ExtractionProvenance), Provision,
+                           Evidence, Inference, RegulatoryRelationship, InvestigationReport,
+                           FinalizedReport
+  services/document_parser.py  PDF -> per-page text (pypdf), with extraction provenance
   services/evidence.py         build/verify verbatim evidence spans (incl. whole reports)
+  services/report.py           finalize_report: the only path to a publishable report
   services/meta_client.py      ModelAdapter protocol + Meta Model API adapter
 tests/                     pytest suite (synthetic PDFs, mocked HTTP)
 ```
@@ -46,7 +48,7 @@ curl http://127.0.0.1:8000/health/live    # {"status":"ok"}
 pytest
 ```
 
-Tests make no network calls and need no API key. They generate their PDFs at runtime and mock the Meta API with `httpx.MockTransport`.
+Tests make no network calls and need no API key. They pass on Python 3.11 and 3.13. They generate their PDFs at runtime and mock the Meta API with `httpx.MockTransport`.
 
 ## Configuration
 
@@ -66,7 +68,20 @@ Tests make no network calls and need no API key. They generate their PDFs at run
 - **Quotes must exist in the source.** `locate_quote` accepts a quote only if it appears verbatim on the cited page. `verify_evidence` and `verify_report_evidence` re-check spans against the extracted page text. `InvestigationReport` rejects any reference that does not resolve to a document, provision, evidence item or inference in the same report.
 
 > **Scope of verification.** These checks prove that a cited passage **exists** at the stated location. They do **not** prove that the passage semantically supports the inference or relationship citing it. They also don't check that the passage belongs to the provisions a relationship names. A real quote attached to an unrelated claim passes every current check. Neither semantic support checking nor checking evidence against provisions is implemented. Both are planned for Sprint 2 (see [docs/SPRINT2_REQUIREMENTS.md](docs/SPRINT2_REQUIREMENTS.md)).
-- **Deterministic IDs.** IDs are hashes of content and position. For example, `doc_<sha256[:16]>` is computed from the PDF bytes, so it does not change if the file is renamed. If a supplied ID does not match its content, it is rejected.
+- **Deterministic IDs.** IDs are hashes of content and position. For example, `doc_<sha256[:32]>` is computed from the PDF bytes, so it does not change if the file is renamed. If a supplied ID does not match its content, it is rejected.
+  - **No delimiter joining.** ID inputs are hashed as canonical JSON (`ids.stable_id`: scheme tag, prefix, typed parts, nested lists kept as lists). Field values containing separators, JSON syntax or look-alike types (`1` vs `"1"`) cannot collide.
+  - **Length.** IDs keep 128 bits of SHA-256. Content digests use all 256 bits.
+  - **Document IDs** must match `doc_<32 hex>`, which keeps `page_id` (`<doc_id>:p<n>`) unambiguous.
+- **Run ID vs content digest.** `InvestigationReport.report_id` identifies the investigation *run*: question, time and documents. It does not cover findings, so two runs with the same inputs and different findings share it. `content_digest()` is a full SHA-256 over the report's canonical JSON, so any change to a finding changes it.
+- **Mandatory finalization.** Pydantic doesn't re-validate on attribute assignment or list mutation, so a report can be changed after it was built. `services/report.py:finalize_report(report, sources)` is the only supported way to publish. It works in this order:
+  1. Re-validates a serialized snapshot of the report.
+  2. Re-validates each source extraction.
+  3. Applies the publication rules.
+  4. Verifies every quote against its source page text.
+  5. Returns an immutable `FinalizedReport`: canonical snapshot text, `content_digest`, and the extraction digests it was verified against. Loading a `FinalizedReport` re-checks the digest, the canonical form and the publication rules. It cannot re-check evidence without the sources.
+- **Fail-closed publication.** `RegulatoryRelationship.status` defaults to `"candidate"`, meaning proposed and not confirmed. Only `basis="extracted"` relationships may ever be `"confirmed"`. Confirmation checks don't exist yet (provision association is Sprint 2 R2), so `finalize_report` and `FinalizedReport` **reject every confirmed relationship**. The future investigator can publish only candidates until those checks exist. Consumers must present candidates as unconfirmed.
+- **Extraction provenance.** Each `ExtractedDocument` records `extractor_name`, `extractor_version`, `extraction_mode` and a `text_digest`, a SHA-256 over the source PDF hash and every page's text. Validation recomputes the digest, so a stored extraction artifact is tamper-evident, and a re-extraction can be compared exactly.
+  > The digest does **not** authenticate the text against the PDF bytes. Anyone who alters the text can recompute the digest. Only re-running the recorded extractor on the source PDF proves where the text came from. A test pins this limit.
 - **Structured errors.** Errors subclass `RegulaGraphError` (`code`, `message`, `details`) and are returned as `{"error": {...}}`.
 
 ## PDF extraction
@@ -77,15 +92,14 @@ How it differs from the PyMuPDF version (Sprint 1, commit `2b6bd13`):
 
 | Aspect | PyMuPDF 1.28 | pypdf 6.x |
 |---|---|---|
-| End of page text | Appended a trailing `
-` | No trailing newline |
+| End of page text | Appended a trailing `\n` | No trailing newline |
 | Spacing and line breaks | MuPDF's text-line reconstruction | pypdf's own heuristics from text-positioning operators. On real PDFs (justified text, kerning) the spaces and breaks **may differ**; this has not been measured on BCT documents yet |
 | Reading order | Content-stream order | Content-stream order. Neither reorders multi-column layouts |
 | Encrypted PDFs | Opened files with only an owner password; rejected files needing a user password | Same behaviour. AES needs `cryptography`, installed through the `pypdf[crypto]` extra |
 | Damaged files | MuPDF repair | Lenient parsing (`strict=False`) logs warnings through the `pypdf` logger and may partly recover. Parse failures become `PDFExtractionError` |
 | Speed | Native C | Pure Python, expected to be slower (not benchmarked) |
 
-Document IDs are unchanged because they hash the PDF bytes. Page text and evidence offsets from the old parser are **not** compatible, but no extracted data had been stored yet. Extracted text also depends on the parser version, so pypdf is pinned to `<7`, and recording the extractor version is a Sprint 2 requirement.
+Document IDs are unchanged because they hash the PDF bytes. Page text and evidence offsets from the old parser are **not** compatible, but no extracted data had been stored yet. Extracted text also depends on the parser version, so pypdf is pinned to `<7`, and every extraction records the extractor version (see *Extraction provenance* above).
 
 ## Meta Model API contract
 

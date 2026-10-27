@@ -15,14 +15,24 @@ import io
 import logging
 from pathlib import Path
 
+import pypdf
 from pypdf import PasswordType, PdfReader
 from pypdf.errors import PyPdfError
 
 from app.core import ids
 from app.core.errors import PDFExtractionError
-from app.models.schemas import Document, ExtractedDocument, ExtractedPage
+from app.models.schemas import (
+    Document,
+    ExtractedDocument,
+    ExtractedPage,
+    ExtractionProvenance,
+    page_text_digest,
+)
 
 logger = logging.getLogger(__name__)
+
+EXTRACTOR_NAME = "pypdf"
+EXTRACTION_MODE = "plain"
 
 # pypdf raises its own errors for most malformed input, but damaged content
 # streams can surface as plain Python errors from its parser.
@@ -59,7 +69,7 @@ def extract_pdf_bytes(data: bytes, *, filename: str) -> ExtractedDocument:
         page_count = len(reader.pages)
         title = (reader.metadata.title if reader.metadata else None) or None
         for index, page in enumerate(reader.pages):
-            text = page.extract_text(extraction_mode="plain")
+            text = page.extract_text(extraction_mode=EXTRACTION_MODE)
             pages.append(ExtractedPage(document_id=doc_id, page_number=index + 1, text=text))
     except _PARSE_ERRORS as exc:
         raise PDFExtractionError(
@@ -74,4 +84,10 @@ def extract_pdf_bytes(data: bytes, *, filename: str) -> ExtractedDocument:
     empty = [p.page_number for p in pages if not p.has_text]
     if empty:
         logger.warning("document %s: %d page(s) without a text layer: %s", doc_id, len(empty), empty)
-    return ExtractedDocument(document=document, pages=pages)
+    provenance = ExtractionProvenance(
+        extractor_name=EXTRACTOR_NAME,
+        extractor_version=pypdf.__version__,
+        extraction_mode=EXTRACTION_MODE,
+        text_digest=page_text_digest(content_hash, pages),
+    )
+    return ExtractedDocument(document=document, provenance=provenance, pages=pages)

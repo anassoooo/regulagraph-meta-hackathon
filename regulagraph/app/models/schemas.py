@@ -15,15 +15,23 @@ supports the claim citing it is not checked anywhere yet.
 IDs are deterministic (see ``app.core.ids``). Each model derives its expected
 ID from its own content: an omitted ID is filled in, a mismatching one is
 rejected, so callers cannot attach a fabricated identifier to a record.
+
+Models are mutable and pydantic does not re-validate on attribute assignment
+or list mutation. Anything leaving the backend must go through
+``app.services.report.finalize_report``, which re-validates a serialized
+snapshot and returns an immutable ``FinalizedReport``.
 """
 
 from datetime import date, datetime
 from enum import StrEnum
-from typing import Literal, Self
+from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
 from app.core import ids
+
+DocumentId = Annotated[str, Field(pattern=ids.DOCUMENT_ID_PATTERN)]
+Sha256Hex = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 
 
 class _Schema(BaseModel):
@@ -39,7 +47,7 @@ class _Schema(BaseModel):
 
 class Document(_Schema):
     document_id: str = ""
-    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    sha256: Sha256Hex
     filename: str = Field(min_length=1)
     title: str | None = None
     page_count: int = Field(ge=1)
@@ -58,7 +66,7 @@ class ExtractedPage(_Schema):
     """Raw text of one PDF page. Evidence offsets index into ``text``."""
 
     page_id: str = ""
-    document_id: str
+    document_id: DocumentId
     page_number: int = Field(ge=1, description="1-based physical page number in the PDF.")
     text: str
 
@@ -72,8 +80,31 @@ class ExtractedPage(_Schema):
         return self
 
 
+def page_text_digest(document_sha256: str, pages: list[ExtractedPage]) -> str:
+    """SHA-256 over canonical JSON of the source hash and every (page_number, text)."""
+    return ids.content_digest(
+        {"document_sha256": document_sha256, "pages": [[p.page_number, p.text] for p in pages]}
+    )
+
+
+class ExtractionProvenance(_Schema):
+    """How the page text of an ``ExtractedDocument`` was produced.
+
+    ``text_digest`` makes a stored extraction artifact tamper-evident and lets
+    a re-extraction be compared byte-for-byte. It does NOT prove the text was
+    derived from the PDF bytes: anyone can recompute a digest over altered
+    text. Only re-running the recorded extractor on the source PDF does that.
+    """
+
+    extractor_name: str = Field(min_length=1)
+    extractor_version: str = Field(min_length=1)
+    extraction_mode: str = Field(min_length=1)
+    text_digest: Sha256Hex
+
+
 class ExtractedDocument(_Schema):
     document: Document
+    provenance: ExtractionProvenance
     pages: list[ExtractedPage]
 
     @model_validator(mode="after")
@@ -82,6 +113,8 @@ class ExtractedDocument(_Schema):
             raise ValueError("pages must be numbered 1..page_count in order")
         if any(p.document_id != self.document.document_id for p in self.pages):
             raise ValueError("every page must belong to the document")
+        if self.provenance.text_digest != page_text_digest(self.document.sha256, self.pages):
+            raise ValueError("provenance.text_digest does not match page text")
         return self
 
 
@@ -90,7 +123,7 @@ class Evidence(_Schema):
 
     kind: Literal["verified_extract"] = "verified_extract"
     evidence_id: str = ""
-    document_id: str
+    document_id: DocumentId
     page_number: int = Field(ge=1)
     char_start: int = Field(ge=0)
     char_end: int = Field(gt=0)
@@ -104,10 +137,7 @@ class Evidence(_Schema):
             raise ValueError("char_end - char_start must equal len(quote)")
         self._bind_id(
             "evidence_id",
-            ids.stable_id(
-                "ev", self.document_id, self.page_number, self.char_start, self.char_end,
-                ids.sha256_hex(self.quote.encode("utf-8")),
-            ),
+            ids.stable_id("ev", self.document_id, self.page_number, self.char_start, self.char_end, self.quote),
         )
         return self
 
@@ -120,7 +150,7 @@ class Provision(_Schema):
     """
 
     provision_id: str = ""
-    document_id: str
+    document_id: DocumentId
     label: str = Field(min_length=1, description="Provision label as printed, e.g. 'Article 5'.")
     text: str = Field(min_length=1)
     page_start: int = Field(ge=1)
@@ -148,7 +178,7 @@ class Inference(_Schema):
         _unique(self.supporting_evidence_ids, "supporting_evidence_ids")
         self._bind_id(
             "inference_id",
-            ids.stable_id("inf", self.model_id, self.statement, *sorted(self.supporting_evidence_ids)),
+            ids.stable_id("inf", self.model_id, self.statement, sorted(self.supporting_evidence_ids)),
         )
         return self
 
@@ -170,6 +200,11 @@ class RegulatoryRelationship(_Schema):
     Both must cite evidence. Known gap: cited evidence is not yet required to lie
     within the source or target provision, and is never checked for semantic
     support. See docs/SPRINT2_REQUIREMENTS.md (R2).
+
+    ``status`` is fail-closed. ``"candidate"`` (the default) means "proposed,
+    not confirmed" and is the only status ``finalize_report`` publishes today.
+    ``"confirmed"`` is reserved for extracted relationships that pass
+    confirmation checks which do not exist yet, so finalization rejects it.
     """
 
     relationship_id: str = ""
@@ -179,9 +214,12 @@ class RegulatoryRelationship(_Schema):
     basis: Literal["extracted", "inferred"]
     evidence_ids: list[str] = Field(min_length=1)
     inference_id: str | None = None
+    status: Literal["candidate", "confirmed"] = "candidate"
 
     @model_validator(mode="after")
     def _check(self) -> Self:
+        if self.status == "confirmed" and self.basis != "extracted":
+            raise ValueError("only extracted relationships can ever be confirmed")
         if self.source_provision_id == self.target_provision_id:
             raise ValueError("a provision cannot relate to itself")
         _unique(self.evidence_ids, "evidence_ids")
@@ -201,12 +239,17 @@ class InvestigationReport(_Schema):
 
     Referential integrity only: this does not check quote text against sources
     (see ``verify_report_evidence``) or that evidence supports what cites it.
+
+    ``report_id`` identifies the investigation *run* (question, time, documents).
+    It deliberately does not cover findings: runs with the same inputs but
+    different findings share a ``report_id``. Content is bound separately by
+    ``content_digest()`` and ``FinalizedReport.content_digest``.
     """
 
     report_id: str = ""
     question: str = Field(min_length=1)
     generated_at: datetime
-    document_ids: list[str] = Field(min_length=1)
+    document_ids: list[DocumentId] = Field(min_length=1)
     provisions: list[Provision] = Field(default_factory=list)
     evidence: list[Evidence] = Field(default_factory=list)
     inferences: list[Inference] = Field(default_factory=list)
@@ -235,9 +278,66 @@ class InvestigationReport(_Schema):
 
         self._bind_id(
             "report_id",
-            ids.stable_id("rep", self.question, self.generated_at.isoformat(), *sorted(self.document_ids)),
+            ids.stable_id("rep", self.question, self.generated_at.isoformat(), sorted(self.document_ids)),
         )
         return self
+
+    def canonical_snapshot(self) -> str:
+        """Canonical JSON of the entire report, findings included."""
+        return ids.canonical_json(self.model_dump(mode="json"))
+
+    def content_digest(self) -> str:
+        """Full SHA-256 of ``canonical_snapshot()``; changes whenever any finding changes."""
+        return ids.sha256_hex(self.canonical_snapshot().encode("utf-8"))
+
+
+class FinalizedReport(_Schema):
+    """Immutable, publishable snapshot produced by ``finalize_report``.
+
+    The report is held as canonical JSON text, so it cannot be mutated in
+    place; ``report()`` returns a freshly validated copy. Deserializing a
+    ``FinalizedReport`` re-checks digest, canonical form and publication
+    rules, but cannot re-verify evidence against sources: re-run
+    ``finalize_report`` with the sources for that.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    report_id: str
+    content_digest: Sha256Hex
+    snapshot: str
+    verified_sources: dict[DocumentId, Sha256Hex] = Field(
+        description="document_id -> provenance.text_digest of the extraction the evidence was verified against."
+    )
+
+    @model_validator(mode="after")
+    def _check(self) -> Self:
+        if ids.sha256_hex(self.snapshot.encode("utf-8")) != self.content_digest:
+            raise ValueError("content_digest does not match snapshot")
+        report = InvestigationReport.model_validate_json(self.snapshot)
+        if report.canonical_snapshot() != self.snapshot:
+            raise ValueError("snapshot is not in canonical form")
+        if report.report_id != self.report_id:
+            raise ValueError("report_id does not match snapshot")
+        if set(report.document_ids) != set(self.verified_sources):
+            raise ValueError("verified_sources must cover exactly the report's documents")
+        assert_publishable(report)
+        return self
+
+    def report(self) -> InvestigationReport:
+        return InvestigationReport.model_validate_json(self.snapshot)
+
+
+def assert_publishable(report: InvestigationReport) -> None:
+    """Fail closed: no relationship may be published as confirmed yet.
+
+    Confirmation would require provision-span association (Sprint 2, R2) and
+    further validation. None of it exists, so ``"confirmed"`` is always
+    rejected. Semantic support is not verified for any status.
+    """
+    confirmed = [r.relationship_id for r in report.relationships if r.status == "confirmed"]
+    if confirmed:
+        raise ValueError(f"relationship confirmation checks are not implemented; cannot publish confirmed {confirmed}")
 
 
 def _unique(values: list[str], name: str) -> set[str]:

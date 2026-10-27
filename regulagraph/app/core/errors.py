@@ -33,6 +33,25 @@ class EvidenceValidationError(RegulaGraphError):
     http_status = 422
 
 
+class ReportValidationError(RegulaGraphError):
+    code = "report_invalid"
+    http_status = 422
+
+
+class PublicationBlockedError(RegulaGraphError):
+    """A report contains content that the fail-closed publication rules refuse."""
+
+    code = "publication_blocked"
+    http_status = 422
+
+
+class InvalidModelRequestError(RegulaGraphError):
+    """Rejected locally, before any request is built or sent."""
+
+    code = "invalid_model_request"
+    http_status = 400
+
+
 class InferenceDisabledError(RegulaGraphError):
     """Raised before any network call when paid inference is not explicitly enabled."""
 

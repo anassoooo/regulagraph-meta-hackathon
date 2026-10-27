@@ -1,7 +1,8 @@
 # Sprint 2 requirements carried over from the PR #3 review
 
-Status: **documented, not implemented.** Sprint 1 code does not meet these. They are
-listed here so Sprint 2 starts from the known gaps. They were raised in PM review of PR #3.
+Status: **documented, not implemented** unless a section says otherwise. They are listed
+here so Sprint 2 starts from the known gaps. They were raised in PM and independent reviews
+of PR #3.
 
 ---
 
@@ -106,6 +107,19 @@ report, is accepted as support for "Article X repeals Article Y". Verifying quot
 - An inferred relationship whose inference cites evidence missing from the relationship
   is rejected.
 
+### Link to publication status
+
+Relationships are `status="candidate"` by default, and `finalize_report` rejects any
+`"confirmed"` relationship (fail-closed, Sprint 1). Implementing R2 is a precondition for
+allowing `"confirmed"`, but it is not sufficient on its own. Confirmation must also require:
+
+- `basis="extracted"`;
+- the R2 location and lexical checks passing at finalization time;
+- whatever further validation the team specifies.
+
+Only then may `assert_publishable` accept confirmed relationships. A model's verdict must
+never promote a relationship to `"confirmed"`.
+
 ### Explicit non-claim
 
 R2 checks **where** evidence comes from, not **what it means**. Passing R2 does not show
@@ -116,15 +130,36 @@ verification.
 
 ---
 
-## R3. Record the extractor version
+## R3. Extractor provenance (partly done)
 
-Evidence offsets index into the parser's output, which can change between pypdf versions.
-`Document` (or `ExtractedDocument`) must record the extractor name and version, for
-example `pypdf 6.21.2, plain`. Verification must refuse to compare evidence against text
-produced by a different extractor version.
+**Done in Sprint 1:** `ExtractedDocument.provenance` records the extractor name, version and
+mode, plus a `text_digest` over the source hash and all page text. Validation recomputes the
+digest, and `FinalizedReport.verified_sources` records which extraction digest each document's
+evidence was verified against.
+
+**Remaining:**
+
+- **Bind evidence to an extraction.** Evidence should carry, or be bound to, the
+  `text_digest` of the extraction its offsets refer to. Verification must then refuse to
+  check it against an extraction with a different digest or extractor version.
+- **Re-extraction check for reused artifacts.** Before an extraction artifact loaded from
+  storage is trusted, re-run the recorded extractor on the source PDF and compare digests.
+  The digest alone does not authenticate text against the PDF bytes.
 
 ## R4. Measure extraction quality on real BCT documents
 
 The Sprint 1 tests use synthetic PDFs. Before building on the extracted text, run pypdf on
 a small set of public BCT circulars. Record spacing, line-break, reading-order and accent
 problems, and confirm or revise the parser decision in `LICENSING.md` and `README.md`.
+
+## R5. Ingestion limits
+
+There are no limits yet on PDF size, page count, per-page text length or extraction time,
+and no guard against decompression bombs or pathological content streams. pypdf is pure
+Python, so a hostile or merely huge PDF can exhaust memory or CPU. Before any upload
+endpoint exists:
+
+- set limits from configuration and enforce them before parsing, or during parsing where
+  that is possible;
+- return a structured `PDFExtractionError` that names the limit;
+- add tests with oversized and over-long inputs.

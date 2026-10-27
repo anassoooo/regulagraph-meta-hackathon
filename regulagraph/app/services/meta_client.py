@@ -23,7 +23,7 @@ import httpx
 from pydantic import BaseModel, Field, ValidationError
 
 from app.core.config import Settings
-from app.core.errors import InferenceDisabledError, ModelProviderError
+from app.core.errors import InferenceDisabledError, InvalidModelRequestError, ModelProviderError
 
 logger = logging.getLogger(__name__)
 
@@ -100,13 +100,24 @@ class MetaModelAdapter:
         if s.meta_api_key is None or not s.meta_api_key.get_secret_value():
             raise InferenceDisabledError("MODEL_API_KEY is not configured")
         if not messages:
-            raise ValueError("messages must not be empty")
+            raise InvalidModelRequestError("messages must not be empty")
+        # Explicit check: `0 or cap` would silently turn 0 into the cap, and bool is an int subclass.
+        if max_completion_tokens is not None and (
+            isinstance(max_completion_tokens, bool)
+            or not isinstance(max_completion_tokens, int)
+            or max_completion_tokens <= 0
+        ):
+            raise InvalidModelRequestError(
+                "max_completion_tokens must be a positive integer",
+                details={"max_completion_tokens": repr(max_completion_tokens)},
+            )
 
         cap = s.meta_max_completion_tokens
+        tokens = cap if max_completion_tokens is None else min(max_completion_tokens, cap)
         payload: dict[str, object] = {
             "model": s.meta_model_id,
             "messages": [m.model_dump() for m in messages],
-            "max_completion_tokens": min(max_completion_tokens or cap, cap),
+            "max_completion_tokens": tokens,
         }
         if temperature is not None:
             payload["temperature"] = temperature
