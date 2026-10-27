@@ -2,3 +2,10 @@ __pycache__/
 *.pyc
 .venv/
 .env
+.pytest_cache/
+*.egg-info/
+build/
+
+# Source PDFs are downloaded locally, not committed (see data/README.md).
+data/raw/
+*.pdf
