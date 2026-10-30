@@ -64,7 +64,7 @@ pytest
 - **Real-corpus tests** (`test_real_corpus.py`, the gold-quote and structural-probe tests in `test_evaluation.py`) run only when the PDFs have been fetched. Otherwise they are skipped.
 - **Live Meta test** (`tests/test_live_meta.py`) is skipped unless `RUN_LIVE_META=1`.
 - **Mocked API.** Elsewhere the Meta API is mocked with `httpx.MockTransport` (`tests/test_investigator.py::test_end_to_end_with_mocked_meta_http_api`).
-- **Web client.** `node --test tests/js/view.test.mjs` runs the client unit tests; `pytest` also runs them, plus the E01 journey test, when Node is installed.
+- **Web client.** `node --test tests/js/view.test.mjs tests/js/controller.test.mjs` runs the client tests: the view logic, and the real `app.js` controller against a minimal fake DOM with controlled response ordering (latest scenario selection wins). `pytest` also runs them, plus the E01 journey test, when Node is installed.
 
 ## Web demo (Sprint 3, replay only)
 
@@ -76,8 +76,8 @@ python scripts/demo.py           # preflight, then http://127.0.0.1:8000   (--ch
 **Preflight** (`scripts/demo.py`) refuses to start, with an actionable message, if:
 
 - a corpus PDF is missing or fails its SHA-256 check;
-- a scenario's recording is missing;
-- a replay fails, or E01 doesn't reproduce its recorded run exactly;
+- a scenario's recording is missing, malformed, or inconsistent with the scenario (case ID, question, recorded model, prompt provisions, report metadata);
+- any scenario's replay does not reproduce its recording exactly (content digest, report ID, prompt), does not publish the expected candidate relation types, or the current scorer run on the replay disagrees with the stored evaluation;
 - the port is taken.
 
 It also starts the server with `META_INFERENCE_ENABLED=false`.
@@ -93,7 +93,7 @@ It also starts the server with `META_INFERENCE_ENABLED=false`.
 4. Optionally run E12 (implements 47 → 8), E05 ("sans préjudice", a reference) and E13 ("ne sont pas applicables", a reference only).
 5. Open **Evaluation**: scorer v2 results, with **E10 shown as truncated (no answer)**, cases not run live marked as such, and the 15 semantic errors that structural checks cannot detect.
 
-**Replay provenance.** A replay is not a stored screenshot of a result. `app/services/replay.py` takes the raw Muse output recorded during an authorised live run (`eval/results/live_*.json`, listed in `current_scoring_summary.json`). It feeds that output, via `ReplayAdapter`, back through the real pipeline (`investigate` → `finalize_report`), with the same prompt provisions and the recorded timestamp. Every quotation is re-located in the hash-verified PDF text on each replay, and E01 reproduces the recorded run's content digest exactly. If the PDFs, the recordings or the provision IDs no longer match, the API returns 503 and shows nothing.
+**Replay provenance.** A replay is not a stored screenshot of a result. `app/services/replay.py` takes the raw Muse output recorded during an authorised live run (`eval/results/live_*.json`, listed in `current_scoring_summary.json`). It feeds that output, via `ReplayAdapter`, back through the real pipeline (`investigate` → `finalize_report`), with the same prompt provisions and the recorded timestamp. Every quotation is re-located in the hash-verified PDF text on each replay, and every scenario must reproduce its recorded run's content digest exactly. The evaluation returned with a replay is recomputed by the current scorer from that replay; stored labels are used only as a cross-check and never shown on their own. If the PDFs, the recordings, the provision IDs or any recording metadata no longer match, the API returns 503 and shows nothing.
 
 **What the screen does and does not claim.**
 

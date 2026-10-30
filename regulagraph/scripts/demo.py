@@ -7,9 +7,12 @@
 Preflight, in order; any failure stops the demo with a message saying what to do:
 
 1. every investigation PDF is present in data/raw/ and matches its manifest SHA-256;
-2. every demo scenario has a recorded live run listed in eval/results/current_scoring_summary.json;
-3. every scenario replays offline through the real pipeline, and the primary scenario (E01)
-   reproduces the recorded run's content digest with two candidate relationships;
+2. every demo scenario has a recorded live run listed in eval/results/current_scoring_summary.json,
+   with every field the replay needs present, well-typed and consistent with the scenario
+   (case ID, question, recorded model, prompt provisions, report metadata);
+3. every scenario replays offline through the real pipeline and reproduces its recording exactly
+   (content digest, report ID, prompt), publishes the scenario's expected candidate relation types,
+   and the current scorer, run on the replay, agrees with the stored evaluation;
 4. the port is free.
 
 The server is started with META_INFERENCE_ENABLED=false, so even a misconfigured
@@ -17,7 +20,6 @@ environment cannot make a paid call from the demo.
 """
 
 import argparse
-import json
 import os
 import socket
 import sys
@@ -33,8 +35,7 @@ from app.core.errors import RegulaGraphError  # noqa: E402
 from app.core.redaction import install_log_redaction  # noqa: E402
 from app.services import replay as replay_service  # noqa: E402
 from app.services.corpus import DEFAULT_RAW_DIR, load_document, load_manifest  # noqa: E402
-
-PRIMARY_EXPECTED_RELATIONS = ["repeals", "supersedes"]
+from app.services.evaluation import load_cases  # noqa: E402
 
 
 class PreflightError(Exception):
@@ -62,35 +63,26 @@ def check_corpus(settings: Settings) -> None:
 
 
 def check_recordings() -> None:
-    try:
-        summary = replay_service.current_summary()
-    except RegulaGraphError as exc:
-        raise PreflightError(f"{exc.message} ({replay_service.CURRENT_SUMMARY})") from exc
+    cases = {c.id: c for c in load_cases().cases}
     for sc in replay_service.SCENARIOS:
-        latest = summary.get("latest_run_per_case", {}).get(sc.id)
-        if latest is None or not (replay_service.RESULTS_DIR / latest["file"]).is_file():
-            raise PreflightError(f"{sc.id}: no recorded live run found in {replay_service.RESULTS_DIR}")
-        _ok(f"{sc.id}: recording {latest['file']}")
+        try:
+            rec = replay_service.load_recording(cases[sc.id])
+        except RegulaGraphError as exc:
+            raise PreflightError(f"{sc.id}: {exc.message} {exc.details} ({replay_service.CURRENT_SUMMARY})") from exc
+        _ok(f"{sc.id}: recording {rec.file} (fields and metadata consistent)")
 
 
 def check_replays(settings: Settings) -> None:
+    # replay() fails closed unless the replay reproduces the recording exactly, publishes the expected
+    # candidate relation types, and the stored evaluation agrees with the current scorer run on it.
     for sc in replay_service.SCENARIOS:
         try:
             result = replay_service.replay(sc.id, settings)
         except RegulaGraphError as exc:
             raise PreflightError(f"{sc.id}: replay failed: {exc.message} {exc.details}") from exc
-        report = result.outcome.finalized.report()
-        types = sorted(r.relation_type.value for r in report.relationships)
-        if any(r.status != "candidate" for r in report.relationships):
-            raise PreflightError(f"{sc.id}: a non-candidate relationship was produced")
-        if sc.primary:
-            recorded = json.loads((replay_service.RESULTS_DIR / result.recording.file).read_text(encoding="utf-8"))
-            digest = next(r["content_digest"] for r in recorded["results"] if r.get("case_id") == sc.id)
-            if result.outcome.finalized.content_digest != digest or types != PRIMARY_EXPECTED_RELATIONS:
-                raise PreflightError(f"{sc.id}: replay does not reproduce the recorded run (got {types})")
-            _ok(f"{sc.id}: replay reproduces the recorded run exactly ({', '.join(types)})")
-        else:
-            _ok(f"{sc.id}: replay {result.outcome.model_call.outcome}, {len(types)} candidate relationship(s)")
+        types = ", ".join(sc.expected_relations)
+        validated = "validated" if result.evaluation["validated"] else "not validated"
+        _ok(f"{sc.id}: replay reproduces the recorded run exactly ({types}; evaluation re-scored: {validated})")
 
 
 def check_port(host: str, port: int) -> None:

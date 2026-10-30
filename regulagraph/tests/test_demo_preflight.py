@@ -70,4 +70,6 @@ def test_full_preflight_passes_on_the_real_corpus(demo, monkeypatch, capsys) -> 
         free_port = s.getsockname()[1]
     demo.preflight("127.0.0.1", free_port)
     out = capsys.readouterr().out
-    assert "E01: replay reproduces the recorded run exactly (repeals, supersedes)" in out
+    for sid, types in (("E01", "repeals, supersedes"), ("E12", "implements"), ("E05", "references"),
+                       ("E13", "references")):
+        assert f"{sid}: replay reproduces the recorded run exactly ({types}; evaluation re-scored: validated)" in out

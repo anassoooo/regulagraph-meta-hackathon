@@ -87,19 +87,35 @@ async function loadScenarios() {
 }
 
 let current = null;
+// Latest request wins: each selection gets a new sequence number and aborts the previous request.
+// A response or error for a superseded selection is dropped, so it can never overwrite the UI.
+let replaySeq = 0;
+let replayAbort = null;
 
 async function runReplay(sc, button) {
+  const seq = ++replaySeq;
+  if (replayAbort) replayAbort.abort();
+  replayAbort = new AbortController();
+  const { signal } = replayAbort;
+  current = null; // stale evidence must not be selectable while the new replay loads
   document.querySelectorAll(".scenario").forEach((b) => b.classList.toggle("selected", b === button));
   clearResult();
   $("question").append(el("span", { className: "label", text: "Question" }), el("p", { text: sc.question }));
   showState({ kind: "loading", title: "Replaying…", body: "Re-verifying the recorded answer against the source text." });
+  let replay;
   try {
-    current = await api(`/api/scenarios/${encodeURIComponent(sc.id)}/replay`, { method: "POST" });
+    replay = await api(`/api/scenarios/${encodeURIComponent(sc.id)}/replay`, { method: "POST", signal });
   } catch (err) {
-    current = null;
+    if (seq !== replaySeq) return;
     showState(errorMessage(err.status || 0, err.body));
     return;
   }
+  if (seq !== replaySeq) return;
+  if (!replay || !replay.scenario || replay.scenario.id !== sc.id) {
+    showState(errorMessage(0, { error: { message: "The replay response does not belong to the selected scenario." } }));
+    return;
+  }
+  current = replay;
   renderReplay(current);
 }
 

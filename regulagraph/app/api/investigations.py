@@ -108,6 +108,23 @@ class RecordingOut(BaseModel):
     latency_ms: float | None
 
 
+EVALUATION_MEANING = ("Computed by the current scorer from this replay (content digest above), not copied from "
+                      "stored labels. 'Validated' means the answer matched the author's annotation; it is not a "
+                      "legal or semantic verification of the relationship.")
+
+
+class ReplayEvaluationOut(BaseModel):
+    case_id: str
+    correct: bool
+    validated: bool
+    verdicts: list[str]
+    errors: list[str]
+    scoring_version: int
+    content_digest: str
+    recording: str
+    meaning: str = EVALUATION_MEANING
+
+
 class ReplayOut(BaseModel):
     mode: Literal["replay"] = "replay"
     notice: str = REPLAY_NOTICE
@@ -121,7 +138,7 @@ class ReplayOut(BaseModel):
     rejected: list[dict[str, Any]]
     report_id: str
     content_digest: str
-    evaluation: dict[str, Any] | None
+    evaluation: ReplayEvaluationOut
 
 
 def _scenario_out(sc: replay_service.Scenario) -> ScenarioOut:
@@ -209,16 +226,22 @@ def to_replay_out(result: replay_service.ReplayResult) -> ReplayOut:
         rejected=[{"reason": x.reason, "detail": x.detail} for x in outcome.rejected],
         report_id=report.report_id,
         content_digest=outcome.finalized.content_digest,
-        evaluation=None if result.evaluation is None else {
-            "case_id": result.evaluation["case_id"], "correct": result.evaluation["correct"],
-            "validated": result.evaluation["validated"], "verdicts": result.evaluation["verdicts"],
-            "scoring_version": replay_service.current_summary().get("scoring_version"),
-        },
+        # Bound to this verified replay: replay() recomputed it and rejected any stored label that disagrees.
+        evaluation=ReplayEvaluationOut(**result.evaluation),
     )
 
 
 @router.get("/evaluation")
 def evaluation() -> dict[str, Any]:
+    try:
+        return _evaluation()
+    except (KeyError, TypeError, AttributeError, ValueError, OSError) as exc:
+        # Malformed stored results are a controlled 503, never a 500.
+        raise replay_service.DemoUnavailable(
+            f"stored evaluation results are malformed; {replay_service.RESTORE_HINT}") from exc
+
+
+def _evaluation() -> dict[str, Any]:
     summary = replay_service.current_summary()
     structural_files = sorted(Path(replay_service.RESULTS_DIR).glob("structural_*.json"))
     structural = json.loads(structural_files[-1].read_text(encoding="utf-8"))["summary"] if structural_files else None
