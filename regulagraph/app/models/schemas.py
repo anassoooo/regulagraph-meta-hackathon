@@ -22,11 +22,13 @@ or list mutation. Anything leaving the backend must go through
 snapshot and returns an immutable ``FinalizedReport``.
 """
 
+from collections.abc import Mapping
 from datetime import date, datetime
 from enum import StrEnum
+from types import MappingProxyType
 from typing import Annotated, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_serializer, field_validator, model_validator
 
 from app.core import ids
 
@@ -306,9 +308,20 @@ class FinalizedReport(_Schema):
     report_id: str
     content_digest: Sha256Hex
     snapshot: str
-    verified_sources: dict[DocumentId, Sha256Hex] = Field(
+    verified_sources: Mapping[DocumentId, Sha256Hex] = Field(
         description="document_id -> provenance.text_digest of the extraction the evidence was verified against."
     )
+
+    @field_validator("verified_sources", mode="after")
+    @classmethod
+    def _freeze_sources(cls, value: Mapping[str, str]) -> Mapping[str, str]:
+        # frozen=True only blocks attribute assignment; a dict could still be edited in place.
+        # Copy, so the caller's dict can't alias it, and expose a read-only view.
+        return MappingProxyType(dict(sorted(value.items())))
+
+    @field_serializer("verified_sources")
+    def _dump_sources(self, value: Mapping[str, str]) -> dict[str, str]:
+        return dict(value)  # a fresh copy; mutating it does not touch the model
 
     @model_validator(mode="after")
     def _check(self) -> Self:

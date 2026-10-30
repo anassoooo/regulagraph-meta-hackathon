@@ -1,5 +1,6 @@
 """Regression tests for the PR #3 integrity review (items 1-6)."""
 
+import json
 from datetime import UTC, datetime
 
 import httpx
@@ -284,6 +285,79 @@ def test_non_canonical_snapshot_with_matching_digest_is_rejected(report, doc) ->
             snapshot=pretty,
             verified_sources=final.verified_sources,
         )
+
+
+def _in_place_mutations(doc_id: str):
+    other = "doc_" + "f" * 32
+    return [
+        lambda m: m.__setitem__(doc_id, "0" * 64),
+        lambda m: m.__setitem__(other, "0" * 64),
+        lambda m: m.__delitem__(doc_id),
+        lambda m: m.clear(),
+        lambda m: m.update({doc_id: "0" * 64}),
+        lambda m: m.pop(doc_id),
+        lambda m: m.popitem(),
+        lambda m: m.setdefault(other, "0" * 64),
+    ]
+
+
+@pytest.mark.parametrize("index", range(8))
+def test_verified_sources_cannot_be_mutated_in_place(report, doc, index) -> None:
+    final = finalize_report(report, _sources(doc))
+    before = final.model_dump_json()
+    mutate = _in_place_mutations(doc.document.document_id)[index]
+    with pytest.raises((TypeError, AttributeError)):
+        mutate(final.verified_sources)
+    assert final.verified_sources == {doc.document.document_id: doc.provenance.text_digest}
+    assert final.model_dump_json() == before
+
+
+def test_verified_sources_cannot_be_reassigned(report, doc) -> None:
+    final = finalize_report(report, _sources(doc))
+    with pytest.raises(ValidationError):
+        final.verified_sources = {}  # frozen
+
+
+def test_verified_sources_do_not_alias_constructor_input(report, doc) -> None:
+    final = finalize_report(report, _sources(doc))
+    sources = dict(final.verified_sources)
+    rebuilt = FinalizedReport(
+        report_id=final.report_id, content_digest=final.content_digest, snapshot=final.snapshot, verified_sources=sources
+    )
+    sources[doc.document.document_id] = "0" * 64
+    sources["doc_" + "f" * 32] = "0" * 64
+    assert rebuilt.verified_sources == final.verified_sources
+
+
+def test_json_round_trip_preserves_immutability_and_integrity(report, doc) -> None:
+    final = finalize_report(report, _sources(doc))
+    data = final.model_dump_json()
+    loaded = FinalizedReport.model_validate_json(data)
+    assert loaded == final
+    assert loaded.model_dump_json() == data
+    assert dict(loaded.verified_sources) == {doc.document.document_id: doc.provenance.text_digest}
+    with pytest.raises(TypeError):
+        loaded.verified_sources[doc.document.document_id] = "0" * 64  # type: ignore[index]
+    with pytest.raises(ValidationError):
+        loaded.verified_sources = {}  # frozen
+    assert FinalizedReport.model_validate(final.model_dump()) == final
+
+
+@pytest.mark.parametrize(
+    "sources",
+    [
+        lambda d: {},
+        lambda d: {**d, "doc_" + "f" * 32: "0" * 64},
+        lambda d: {k: "not-a-digest" for k in d},
+        lambda d: {"not-a-doc-id": v for v in d.values()},
+    ],
+    ids=["empty", "extra_document", "bad_digest", "bad_document_id"],
+)
+def test_json_with_tampered_verified_sources_is_rejected(report, doc, sources) -> None:
+    final = finalize_report(report, _sources(doc)).model_dump(mode="json")
+    final["verified_sources"] = sources(final["verified_sources"])
+    with pytest.raises(ValidationError):
+        FinalizedReport.model_validate_json(json.dumps(final))
 
 
 # 4. Fail-closed publication status ---------------------------------------
