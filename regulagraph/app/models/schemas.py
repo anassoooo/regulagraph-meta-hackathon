@@ -144,25 +144,74 @@ class Evidence(_Schema):
         return self
 
 
-class Provision(_Schema):
-    """Sprint 1 placeholder identity: (document, label, start page).
+PROVISION_SEGMENT_SEPARATOR = "\n"
+"""Joins the per-page segments of a multi-page provision in ``Provision.text``.
 
-    Known gap: repeated labels on the same start page collide and multi-page
-    spans carry no character offsets. See docs/SPRINT2_REQUIREMENTS.md (R1).
+It is the only character not taken from the source: segment texts are copied
+verbatim and the separator appears exactly once between consecutive segments.
+"""
+
+
+class ProvisionSegment(_Schema):
+    """The part of a provision on one page: ``page.text[char_start:char_end]``."""
+
+    page_number: int = Field(ge=1)
+    char_start: int = Field(ge=0)
+    char_end: int = Field(gt=0)
+
+    @model_validator(mode="after")
+    def _check(self) -> Self:
+        if self.char_end <= self.char_start:
+            raise ValueError("char_end must be > char_start")
+        return self
+
+
+class Provision(_Schema):
+    """A provision identified by where it is in the source, not by its label.
+
+    Identity is ``(document_id, segments)``. ``label`` (the heading as printed)
+    and ``number`` (a normalised designation used to resolve references) are
+    display attributes, so repeated labels never collide. ``text`` must equal
+    the segment texts joined by ``PROVISION_SEGMENT_SEPARATOR``; checking that
+    against the source pages is ``app.services.provisions.verify_provision``.
+
+    ``parent_provision_id`` records nesting (an annex's own articles, a quoted
+    provision inside an amending article). ``quoted`` marks text quoted from
+    another instrument, which is not a provision of this document.
     """
 
     provision_id: str = ""
     document_id: DocumentId
-    label: str = Field(min_length=1, description="Provision label as printed, e.g. 'Article 5'.")
+    kind: Literal["preamble", "article", "annex", "heading"]
+    label: str = Field(min_length=1, description="Heading as printed, e.g. 'Article 5 :'.")
+    number: str | None = Field(default=None, description="Normalised designation, e.g. '1' for 'Article premier'.")
+    segments: list[ProvisionSegment] = Field(min_length=1)
     text: str = Field(min_length=1)
-    page_start: int = Field(ge=1)
-    page_end: int = Field(ge=1)
+    quoted: bool = False
+    parent_provision_id: str | None = None
+
+    @property
+    def page_start(self) -> int:
+        return self.segments[0].page_number
+
+    @property
+    def page_end(self) -> int:
+        return self.segments[-1].page_number
 
     @model_validator(mode="after")
     def _check(self) -> Self:
-        if self.page_end < self.page_start:
-            raise ValueError("page_end must be >= page_start")
-        self._bind_id("provision_id", ids.stable_id("prov", self.document_id, self.label, self.page_start))
+        pages = [s.page_number for s in self.segments]
+        if pages != list(range(pages[0], pages[0] + len(pages))):
+            raise ValueError("segments must be on consecutive pages, one segment per page, in order")
+        expected_len = sum(s.char_end - s.char_start for s in self.segments) + len(PROVISION_SEGMENT_SEPARATOR) * (
+            len(self.segments) - 1
+        )
+        if len(self.text) != expected_len:
+            raise ValueError("text length does not match segments")
+        spans = [[s.page_number, s.char_start, s.char_end] for s in self.segments]
+        self._bind_id("provision_id", ids.stable_id("prov", self.document_id, spans))
+        if self.parent_provision_id == self.provision_id:
+            raise ValueError("a provision cannot be its own parent")
         return self
 
 
@@ -194,14 +243,32 @@ class RelationType(StrEnum):
     CONFLICTS_WITH = "conflicts_with"
 
 
-class RegulatoryRelationship(_Schema):
-    """A directed relation between two provisions.
+class LexicalMatch(_Schema):
+    """Where a cited quote names the relationship's target, and by which rule.
 
-    ``basis="extracted"``: stated explicitly in the source text (deterministic).
+    Lexical only: it shows the target is *mentioned*, not that the passage
+    establishes the relationship. ``app.services.relationships`` re-derives
+    the pattern from the target and re-checks the match at finalization.
+    """
+
+    rule: Literal["regulagraph.lexical.v1"] = "regulagraph.lexical.v1"
+    evidence_id: str
+    match_start: int = Field(ge=0, description="Offset into the evidence quote.")
+    match_end: int = Field(gt=0)
+
+
+class RegulatoryRelationship(_Schema):
+    """A directed relation from a provision to a provision or a whole document.
+
+    The target is exactly one of ``target_provision_id`` and
+    ``target_document_id`` (e.g. "this circular repeals circular 2018-16").
+
+    ``basis="extracted"``: stated explicitly in the source text; requires a
+    ``lexical_match`` showing the source-side quote names the target.
     ``basis="inferred"``: proposed by a model; must reference an ``Inference``.
-    Both must cite evidence. Known gap: cited evidence is not yet required to lie
-    within the source or target provision, and is never checked for semantic
-    support. See docs/SPRINT2_REQUIREMENTS.md (R2).
+    Both must cite evidence located inside the source or target provision, with
+    at least one item inside the source (checked at finalization, see
+    ``app.services.relationships``). Semantic support is never checked.
 
     ``status`` is fail-closed. ``"candidate"`` (the default) means "proposed,
     not confirmed" and is the only status ``finalize_report`` publishes today.
@@ -211,15 +278,19 @@ class RegulatoryRelationship(_Schema):
 
     relationship_id: str = ""
     source_provision_id: str
-    target_provision_id: str
+    target_provision_id: str | None = None
+    target_document_id: DocumentId | None = None
     relation_type: RelationType
     basis: Literal["extracted", "inferred"]
     evidence_ids: list[str] = Field(min_length=1)
     inference_id: str | None = None
+    lexical_match: LexicalMatch | None = None
     status: Literal["candidate", "confirmed"] = "candidate"
 
     @model_validator(mode="after")
     def _check(self) -> Self:
+        if (self.target_provision_id is None) == (self.target_document_id is None):
+            raise ValueError("exactly one of target_provision_id and target_document_id is required")
         if self.status == "confirmed" and self.basis != "extracted":
             raise ValueError("only extracted relationships can ever be confirmed")
         if self.source_provision_id == self.target_provision_id:
@@ -229,11 +300,24 @@ class RegulatoryRelationship(_Schema):
             raise ValueError("inferred relationships must reference an inference_id")
         if self.basis == "extracted" and self.inference_id is not None:
             raise ValueError("extracted relationships must not reference an inference")
+        if self.basis == "extracted" and self.lexical_match is None:
+            raise ValueError("extracted relationships must record a lexical_match")
+        if self.lexical_match is not None and self.lexical_match.evidence_id not in self.evidence_ids:
+            raise ValueError("lexical_match must cite one of the relationship's evidence_ids")
+        target = (
+            ["provision", self.target_provision_id]
+            if self.target_provision_id is not None
+            else ["document", self.target_document_id]
+        )
         self._bind_id(
             "relationship_id",
-            ids.stable_id("rel", self.source_provision_id, self.relation_type.value, self.target_provision_id),
+            ids.stable_id("rel", self.source_provision_id, self.relation_type.value, target),
         )
         return self
+
+    @property
+    def target_id(self) -> str:
+        return self.target_provision_id or self.target_document_id  # type: ignore[return-value]
 
 
 class InvestigationReport(_Schema):
@@ -267,12 +351,21 @@ class InvestigationReport(_Schema):
 
         for item in [*self.provisions, *self.evidence]:
             _require(item.document_id, docs, "document")
+        by_id = {p.provision_id: p for p in self.provisions}
+        for prov in self.provisions:
+            if prov.parent_provision_id is not None:
+                _require(prov.parent_provision_id, provs, "parent provision")
+                if by_id[prov.parent_provision_id].document_id != prov.document_id:
+                    raise ValueError("a provision's parent must be in the same document")
         for inf in self.inferences:
             for ev_id in inf.supporting_evidence_ids:
                 _require(ev_id, evs, "evidence")
         for rel in self.relationships:
             _require(rel.source_provision_id, provs, "provision")
-            _require(rel.target_provision_id, provs, "provision")
+            if rel.target_provision_id is not None:
+                _require(rel.target_provision_id, provs, "provision")
+            else:
+                _require(rel.target_document_id, docs, "document")  # type: ignore[arg-type]
             for ev_id in rel.evidence_ids:
                 _require(ev_id, evs, "evidence")
             if rel.inference_id is not None:

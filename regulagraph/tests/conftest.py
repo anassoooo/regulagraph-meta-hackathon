@@ -5,6 +5,7 @@ import pytest
 from pypdf import PdfReader, PdfWriter
 
 from app.core.config import Settings
+from app.models.schemas import ExtractedDocument, Provision, ProvisionSegment
 
 
 def _pdf_string(line: str) -> bytes:
@@ -97,3 +98,33 @@ def settings_factory() -> Callable[..., Settings]:
         return Settings(_env_file=None, **values)
 
     return _make
+
+
+def span_provision(
+    extracted: ExtractedDocument,
+    page_number: int,
+    label: str,
+    *,
+    start: int = 0,
+    end: int | None = None,
+    kind: str = "article",
+    number: str | None = None,
+    **extra: object,
+) -> Provision:
+    """A single-segment provision copied verbatim from ``extracted`` (whole page by default)."""
+    text = extracted.pages[page_number - 1].text
+    end = len(text) if end is None else end
+    return Provision(
+        document_id=extracted.document.document_id,
+        kind=kind,
+        label=label,
+        number=number,
+        segments=[ProvisionSegment(page_number=page_number, char_start=start, char_end=end)],
+        text=text[start:end],
+        **extra,
+    )
+
+
+@pytest.fixture
+def provision_for() -> Callable[..., Provision]:
+    return span_provision

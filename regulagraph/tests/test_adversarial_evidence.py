@@ -6,9 +6,10 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.errors import EvidenceValidationError
-from app.models.schemas import Evidence, Inference, InvestigationReport, Provision, RegulatoryRelationship
+from app.models.schemas import Evidence, Inference, InvestigationReport, RegulatoryRelationship
 from app.services.document_parser import extract_pdf_bytes
 from app.services.evidence import evidence_from_span, locate_quote, verify_evidence, verify_report_evidence
+from app.services.report import finalize_report
 
 PAGES_A = ["Article 1\nLes banques doivent declarer.", "Article 2\nLa circulaire n 2018-06 est abrogee."]
 PAGES_B = ["Article 1\nLes banques doivent declarer.", "Article 2\nTexte different."]
@@ -199,24 +200,26 @@ def test_report_rejects_citation_to_evidence_outside_report(doc_a) -> None:
         )
 
 
-# Known gap (docs/SPRINT2_REQUIREMENTS.md, R2) ---------------------------------
+# R2 (formerly a pinned known gap): evidence must lie in the related provisions ---
 
-def test_known_gap_real_quote_supporting_unrelated_relationship_is_accepted(doc_a) -> None:
-    """Quote verification proves existence only, not support or provision association.
+def test_real_quote_from_target_only_cannot_support_relationship(doc_a, provision_for) -> None:
+    """Quote verification proves existence only; R2 rejects evidence outside the source provision.
 
-    This pins current behaviour so the gap stays visible; when R2 is implemented
-    this test must be changed to expect rejection.
+    Sprint 1 accepted this report (the pinned known gap). The quote is real but
+    lies in the *target* provision and says nothing about a repeal.
     """
     doc_id = doc_a.document.document_id
     unrelated_quote = locate_quote(doc_a.pages[0], "Les banques doivent declarer.")
-    art1 = Provision(document_id=doc_id, label="Article 1", text="x", page_start=1, page_end=1)
-    art2 = Provision(document_id=doc_id, label="Article 2", text="y", page_start=2, page_end=2)
+    art1 = provision_for(doc_a, 1, "Article 1", number="1")
+    art2 = provision_for(doc_a, 2, "Article 2", number="2")
+    inf = Inference(statement="Article 2 repeals Article 1", model_id="m", supporting_evidence_ids=[unrelated_quote.evidence_id])
     rel = RegulatoryRelationship(
         source_provision_id=art2.provision_id,
         target_provision_id=art1.provision_id,
         relation_type="repeals",
-        basis="extracted",
-        evidence_ids=[unrelated_quote.evidence_id],  # says nothing about repeal
+        basis="inferred",
+        inference_id=inf.inference_id,
+        evidence_ids=[unrelated_quote.evidence_id],
     )
     report = InvestigationReport(
         question="q",
@@ -224,6 +227,9 @@ def test_known_gap_real_quote_supporting_unrelated_relationship_is_accepted(doc_
         document_ids=[doc_id],
         provisions=[art1, art2],
         evidence=[unrelated_quote],
+        inferences=[inf],
         relationships=[rel],
     )
-    verify_report_evidence(report, {doc_id: doc_a})  # passes today: existence only
+    verify_report_evidence(report, {doc_id: doc_a})  # the quote exists ...
+    with pytest.raises(EvidenceValidationError, match="inside the source provision"):
+        finalize_report(report, {doc_id: doc_a})  # ... but does not sit in the source provision
