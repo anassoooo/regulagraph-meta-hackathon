@@ -162,6 +162,8 @@ class CaseResult(BaseModel):
     correct: bool
     errors: list[str]
     citation_ok: bool | None = None
+    coverage_complete: bool = True
+    validated: bool = False  # correct AND every required provision was in the prompt
 
 
 def _summaries(report: InvestigationReport, view: CorpusView) -> list[dict[str, Any]]:
@@ -246,16 +248,45 @@ def score_case(case: EvalCase, outcome: InvestigationOutcome, view: CorpusView) 
                     errors.append(f"forbidden_published:{r.relation_type.value}")
         correct = not errors
     if outcome.model_call.outcome != "ok":
+        # No usable answer (truncated, refused, malformed, ...) is never a correct result, not even for a
+        # negative case: publishing nothing because the model failed is not a correct abstention.
         errors.append(f"model_outcome:{outcome.model_call.outcome}")
-        if case.polarity == "positive":
-            correct = False
+        correct = False
     return CaseResult(
         case_id=case.id, phenomenon=case.phenomenon, polarity=case.polarity,
         model_outcome=outcome.model_call.outcome, retrieved_provision_ids=outcome.retrieved_provision_ids,
         retrieved_source=retrieved_source,
         retrieved_target=retrieved_target, published=_summaries(report, view),
         rejected=len(outcome.rejected), correct=correct, errors=errors, citation_ok=citation_ok,
+        coverage_complete=retrieved_source is not False and retrieved_target is not False,
+        validated=correct and retrieved_source is not False and retrieved_target is not False,
     )
+
+
+def required_provisions(case: EvalCase, view: CorpusView) -> dict[str, str]:
+    """Provisions that must be in the prompt for the case to test anything: label -> provision_id."""
+    required: dict[str, str] = {}
+    if case.expected is not None:
+        source, target_id, _ = resolve_expected(case, view)
+        required[f"source {case.expected.source.doc} {source.label}"] = source.provision_id
+        if case.expected.target.kind == "provision":
+            required[f"target {case.expected.target.doc} article {case.expected.target.number}"] = target_id
+    for f in case.forbidden:
+        if f.source_number:
+            required[f"source {f.source_doc} article {f.source_number}"] = view.find(
+                f.source_doc, "article", f.source_number, False).provision_id
+        if f.target_number:
+            required[f"target {f.target_doc} article {f.target_number}"] = view.find(
+                f.target_doc, "article", f.target_number, False).provision_id
+    return required
+
+
+PRICE_PER_M_INPUT = 1.25  # USD, muse-spark-1.3 standard, pricing page checked 2026-10-30
+PRICE_PER_M_OUTPUT = 4.25  # reasoning tokens are part of completion_tokens
+
+
+def approx_cost_usd(prompt_tokens: int, completion_tokens: int) -> float:
+    return round(prompt_tokens * PRICE_PER_M_INPUT / 1e6 + completion_tokens * PRICE_PER_M_OUTPUT / 1e6, 5)
 
 
 # --- retrieval recall (no model) --------------------------------------------------

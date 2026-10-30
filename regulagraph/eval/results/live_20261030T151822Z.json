@@ -254,7 +254,33 @@
         "question": "L'article 35 de la circulaire n°2026-10 abroge-t-il ou contredit-il l'article 17 de cette circulaire ?",
         "relationships": [],
         "report_id": "rep_64a125e6e079879808a70c4adca047db"
+      },
+      "rescored": {
+        "case_id": "E13",
+        "phenomenon": "negation",
+        "polarity": "negative",
+        "model_outcome": "ok",
+        "retrieved_provision_ids": [
+          "prov_d10d2d0ac395e8a2056c0eb3def8c8a5",
+          "prov_2e8955f5db95ca4bc08f23b4d39cf656",
+          "prov_0d10a3e0a6d0f3fa434671550a997ead",
+          "prov_ee42a434914cc6c96b146d4d7005cecf",
+          "prov_c54fee71ede561dbe9964b904817d664",
+          "prov_c6f8b3812e3b03419ae244cef0abb77e",
+          "prov_0f8fc0e7521a6e83062f7dd6f8d09ae2",
+          "prov_658d7a4340f64ef891e6f3acf7198df4"
+        ],
+        "retrieved_source": true,
+        "retrieved_target": false,
+        "published": [],
+        "rejected": 0,
+        "correct": true,
+        "errors": [],
+        "citation_ok": null,
+        "coverage_complete": false,
+        "validated": false
       }
     }
-  ]
+  ],
+  "rescore_note": "'rescored' re-applies the current scoring (app/services/evaluation.py) to the recorded model output; 'score' is what the run itself recorded."
 }

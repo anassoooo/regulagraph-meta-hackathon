@@ -1,0 +1,355 @@
+{
+  "kind": "live_eval",
+  "summary": {
+    "source": "live Meta Model API (not a replay)",
+    "max_completion_tokens": 2048,
+    "reasoning_effort": "low",
+    "max_prompt_chars": 24000,
+    "cases_requested": [
+      "E05"
+    ],
+    "api_calls": 1,
+    "retrieval_failures": [],
+    "correct": 1,
+    "validated": 1,
+    "tokens": {
+      "prompt_tokens": 3834,
+      "completion_tokens": 936,
+      "total_tokens": 4770,
+      "reasoning_tokens": 762
+    },
+    "approx_cost_usd": 0.00877,
+    "model": "muse-spark-1.3"
+  },
+  "results": [
+    {
+      "case_id": "E05",
+      "question": "Quel est le lien entre l'article 15 et l'article 14 de la circulaire n°2026-10 ?",
+      "preflight": "ok",
+      "required": [
+        "source bct-2026-10-fr Article 15",
+        "target bct-2026-10-fr article 14"
+      ],
+      "api_called": true,
+      "prompt_chars": 14805,
+      "approx_cost_usd": 0.00877,
+      "proposals_received": 1,
+      "score": {
+        "case_id": "E05",
+        "phenomenon": "negation_qualifier",
+        "polarity": "positive",
+        "model_outcome": "ok",
+        "retrieved_provision_ids": [
+          "prov_d10d2d0ac395e8a2056c0eb3def8c8a5",
+          "prov_29647def4a6b58ce8ab203f4dd6d0274",
+          "prov_c6a23c9209200171ba825f4607c238f3",
+          "prov_df72561d3bdfcaaa38e3189560ce2633",
+          "prov_b54d468ca3a2115a2466b79305bce482",
+          "prov_d1af2a0eb9916378b9ceb1688306592b",
+          "prov_c54fee71ede561dbe9964b904817d664",
+          "prov_c6f8b3812e3b03419ae244cef0abb77e"
+        ],
+        "retrieved_source": true,
+        "retrieved_target": true,
+        "published": [
+          {
+            "relationship_id": "rel_c3bd667fd3df074f734687493f0a6cc8",
+            "source": "bct-2026-10-fr Article 15",
+            "relation_type": "references",
+            "target": "bct-2026-10-fr Article 14",
+            "status": "candidate",
+            "lexical_match": true
+          }
+        ],
+        "rejected": 0,
+        "correct": true,
+        "errors": [],
+        "citation_ok": true,
+        "coverage_complete": true,
+        "validated": true
+      },
+      "model_call": {
+        "outcome": "ok",
+        "model_id": "muse-spark-1.3",
+        "response_id": "chatcmpl-01a18d72-37fe-7204-a64c-02c60d832227",
+        "http_status": 200,
+        "finish_reason": "stop",
+        "refusal": null,
+        "usage": {
+          "prompt_tokens": 3834,
+          "completion_tokens": 936,
+          "total_tokens": 4770,
+          "completion_tokens_details": {
+            "reasoning_tokens": 762
+          }
+        },
+        "latency_ms": 8018.5,
+        "error": null,
+        "max_completion_tokens": 2048,
+        "reasoning_effort": "low",
+        "raw_text": "{\"relationships\": [{\"quotes\": [{\"provision_id\": \"prov_b54d468ca3a2115a2466b79305bce482\", \"text\": \"Sans pr\\u00e9judice des dispositions de l\\u2019article  14\"}], \"rationale\": \"L'article 15 cite l'article 14 avec la formule \\\"Sans pr\\u00e9judice\\\", ce qui constitue une simple r\\u00e9f\\u00e9rence sans modification.\", \"relation_type\": \"references\", \"source_provision_id\": \"prov_b54d468ca3a2115a2466b79305bce482\", \"target_id\": \"prov_df72561d3bdfcaaa38e3189560ce2633\", \"target_kind\": \"provision\"}]}"
+      },
+      "rejected": [],
+      "content_digest": "3c2f48bd6a379ee2d51b767103da017ae6fde29f75b5b0579946e94c74a3b5eb",
+      "report": {
+        "document_ids": [
+          "doc_fe31431614e7eeee7b163583c02af0e3"
+        ],
+        "evidence": [
+          {
+            "char_end": 74,
+            "char_start": 26,
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "evidence_id": "ev_da53b495f8511a596477b4a3c76c8743",
+            "kind": "verified_extract",
+            "page_number": 13,
+            "quote": "Sans préjudice des dispositions de l’article  14"
+          }
+        ],
+        "generated_at": "2026-10-30T15:33:55.247227Z",
+        "inferences": [
+          {
+            "inference_id": "inf_5ad06ec7a3650a388d6901e4a308e949",
+            "kind": "model_inference",
+            "model_id": "muse-spark-1.3",
+            "statement": "L'article 15 cite l'article 14 avec la formule \"Sans préjudice\", ce qui constitue une simple référence sans modification.",
+            "supporting_evidence_ids": [
+              "ev_da53b495f8511a596477b4a3c76c8743"
+            ]
+          }
+        ],
+        "provisions": [
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "preamble",
+            "label": "(préambule)",
+            "number": null,
+            "parent_provision_id": null,
+            "provision_id": "prov_d10d2d0ac395e8a2056c0eb3def8c8a5",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 1404,
+                "char_start": 0,
+                "page_number": 1
+              },
+              {
+                "char_end": 1271,
+                "char_start": 0,
+                "page_number": 2
+              }
+            ],
+            "text": "   \n \n 1  \n \n \n                                                                                   Tunis, le 25 septembre 2026. \n \n \n \n \nCirculaire de la Banque Centrale de Tunisie n°2026-10 \n \nObjet : Règles régissant l’activité et le fonctionnement des établissements de \npaiement. \nLe Gouverneur de la Banque Centrale de Tunisie, \nVu la loi organique n°2004 -63 du 27 juillet 2004 , relative à la protection des \ndonnées à caractère personnel,  \nVu la loi organique n°2015 -26 du 7 août 2015, relative à la lutte contre le \nterrorisme et à la répression du blanchiment d’argent telle que modifiée et \ncomplétée par la loi organique n°2019-9 du 23 janvier 2019,  \nVu la loi n°2000 -83 du 9 ao ût 2000, relative aux échanges et au commerce \nélectroniques, \nVu la loi n° 2005-51 du 27 juin 2005, relative au transfert électronique de fonds,  \nVu la loi n°2016 -35 du 25 avril 2016 , portant fixation du statut de la Banque \nCentrale de Tunisie notamment son article 8,  \nVu la loi n°2016-48 du 11 juillet 2016, relative aux banques et aux établissements \nfinanciers notamment ses articles 20 et 21,  \nVu le décret-loi n°2023-17 du 11 mars 2023, relatif à la cybersécurité, \nVu la circulaire aux établissements de crédit n° 2006-1 du 28 mars 2006, relative \nà la réglementation des conditions des opérations d’externalisation, \nVu la circulaire aux établissements de crédit n°2006-19 du 28 novembre 2006 , \n   \n \n 2  \n \nrelative au contrôle interne dans les établissements de crédit,  \nVu la circulaire aux banques et aux établissements financiers n°2017 -6 du 31 \njuillet 2017, relative au reporting comptable, prudentiel et statistique à la Banque \nCentrale de Tunisie,   \nVu la circulaire aux banques et aux établissements financiers n°2017 -08 du 19 \nseptembre 2017, relative aux dispositif et règles de contrôle interne en matière \nde lutte contre le blanchiment d’argent, le financement du terrorisme et le \nfinancement de la prolifération des armes de destruction massive, telle que \nmodifiée et comp létée par les textes subséquents et notamment la circulaire \nn°2025-17 du 22 décembre 2025,  \nVu la circulaire de la Banque Centrale de Tunisie n°2018 -16 du 31 décembre \n2018, relative aux règles régissant l’activité et le fonctionnement des \nétablissements de paiement, \nVu la circulaire de la Banque Centrale de Tunisie n°2020 -11 du 18 mai 2020, \nrelative aux  conditions de fourniture des services de paiement mobile \ndomestique, \nVu l’avis n° 2026-10 du Comité de Contrôle de la Conformité en date du 25 \nseptembre 2026 , tel que prévu par l’article 42 de la loi n°2016 -35 du 25 avril \n2016 portant fixation du statut de la Banque Centrale de Tunisie. \nDécide : \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "article",
+            "label": "Article 3",
+            "number": "3",
+            "parent_provision_id": null,
+            "provision_id": "prov_29647def4a6b58ce8ab203f4dd6d0274",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 630,
+                "char_start": 128,
+                "page_number": 4
+              }
+            ],
+            "text": "Article 3 : Les opérations de transfert de fonds effectuées par remise d’espèces, \nmentionnées au quatrième tiret de l’article 2 de la présente circulaire sont \nplafonnées à un montant de trois mille (3 000) dinars par opération.   \nLes opérations de mise à disposition de fonds en provenance de l’étranger, visées \nau niveau de l’article 2 de la présente circulaire, sont plafonnées à la contre -\nvaleur de vingt mille (20 000) dinars par opération.  \nCes opérations doivent être dûment justifiées.  \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "article",
+            "label": "Article 12",
+            "number": "12",
+            "parent_provision_id": null,
+            "provision_id": "prov_c6a23c9209200171ba825f4607c238f3",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 1540,
+                "char_start": 566,
+                "page_number": 9
+              },
+              {
+                "char_end": 256,
+                "char_start": 0,
+                "page_number": 10
+              }
+            ],
+            "text": "Article 12 : Les établissements de paiement doivent se doter : \n- D’un système d’information sécurisé et évolutif  en adéquation avec la \nnature et la complexité des opérations de paiement. \n- D’un dispositif de sécurité des opérations qui permet d’assurer la \ntraçabilité des opérations de paiement exécutés et des fonds collectés et de \ndisposer de la position de l’ensemble des comptes de paiement ouverts sur \nleurs livres. \n- D’un système d’enregistrement et de traitement des opérations de \npaiement en temps réel aussi bien au niveau de l’établissement lui-même \nqu’au niveau de son réseau d’agents de paiement. \n- D’un dispositif interne approprié pour la lutte contre le blanchiment \nd’argent, le financement du terrorisme et la prolifération  des armes de \ndestruction massive, couvrant l’ensemble de leurs activités. \n- D’un dispositif formalisé de traitement des réclamations ainsi que de \nprotection des données à caractère personnel de leurs clients, conforme \n   \n \n 10  \n \naux dispositions légales et réglementaires en vigueur.  \n- D’un dispositif adéquat de gestion des risques y compris  les risques \nopérationnels et le risque cybernétique. \n- D’un plan de continuité d’activité formalisé, testé et mis à jour. \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "article",
+            "label": "Article 14",
+            "number": "14",
+            "parent_provision_id": null,
+            "provision_id": "prov_df72561d3bdfcaaa38e3189560ce2633",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 1830,
+                "char_start": 109,
+                "page_number": 11
+              },
+              {
+                "char_end": 1849,
+                "char_start": 0,
+                "page_number": 12
+              },
+              {
+                "char_end": 14,
+                "char_start": 0,
+                "page_number": 13
+              }
+            ],
+            "text": "Article 14: Les établissement de paiement sont soumis aux dispositions de la \ncirculaire n°2017 -08 du 19 septembre 2017, telle que modifiée par les textes \nsubséquents. A cet effet, ils doivent mettre en place un  dispositif de lutte contre \nle blanchiment d’argent, le financement du terrorisme et la prolifération des \narmes de destruction massive  conformément à l’article 12 de la présente \ncirculaire. \nCe dispositif  doit être fondé sur une approche basée sur les risques  et \ncomprendre notamment  des politiques, des procédures, une organisation, des \nmoyens humains et techniques et des mesures de contrôle interne permettant \nd'assurer l'identification, l'évaluation, la compréhension, la maîtrise, le suivi et \nl’atténuation des risques de blanchiment d'argent, de financement du terrorisme \net de financement de la prolifération auxquels l'établissement est exposé.   Dans \nce cadre, les établissements doivent : \n− S’assurer que le dispositif susvisé  couvre l'ensemble des activités, \nproduits, services, canaux de distribution, catégories de clientèle, zones \ngéographiques ainsi que les technologies utilisées, y compris les activités \nexercées par l'intermédiaire des agents de paiement, ou par tout autre \npartenaire ou tiers auquel l'établissement recourt dans le cadre de ses \nactivités. \n− Effectuer une évaluatio n des risques conformément à l’article 4 de la \ncirculaire n°2017-08. Cette évaluation doit être régulièrement actualisée \net à l'occasion de tout changement significatif affectant son activité, son \norganisation, ses produits, ses services, son réseau , ses canaux de \ndistribution ou les technologies utilisées. \n− Intégrer dans l’évaluation susvisée les risques émergents résultant \n   \n \n 12  \n \nnotamment du recours aux nouvelles technologies, aux processus d'entrée \nen relation ou d'enrôlement à distance, aux solutions innovantes de \npaiement et  de transfert de fonds  ainsi qu’ aux opérations \nd’externalisation. \n− Prévoir des mesures de vigilance à l'égard de la clientèle proportionnées \nau niveau de risque identifié, incluant, selon le cas, des mesures de \nvigilance simplifiée, ou renforcée, sur la base des résultats des évaluations \nnationales des risques et de l’ autoévaluation des risques réalisé e par \nl’établissement ; \nLe respect des plafonds visés par l’article 3 de la présente circulaire  ne \ndispense en aucun cas l'établissement de ses obligations de vigilance \nprévues par la législation et la réglementation en vigueur en matière de \nlutte contre le blanchiment d'argent, le financement du terrorisme et le \nfinancement de la prolifération des armes de destruction massive ;  \n− Assurer une formation continue et adaptée des membres du personnel, des \nagents de paiement et des personnes concernées sur les risques de \nblanchiment d'argent, de financement du terrorisme et de financement de \nla prolifération  des armes de destruction massive  ainsi que sur les \nobligations qui leur incombent en la matière. \nLes établissements de paiement sont tenus de documenter, de justifier et de \nconserver l'ensemble des éléments relatifs à l'évaluation des risques, aux \nmesures de vigilance mises en œuvre, aux contrôles effectués ainsi qu'aux \ndécisions prises dans le cadre de l'application de l'approche basée sur les risques. \nCes informations et documents doivent être conservés pendant les délais prévus \npar la législation en vigueur et tenus à la disposition de la Banque Centrale de \nTunisie ainsi que de toute autre autorité compétente habilitée, et leur être \ncommuniqués sans délai à leur demande. \n   \n \n 13  \n \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "article",
+            "label": "Article 15",
+            "number": "15",
+            "parent_provision_id": null,
+            "provision_id": "prov_b54d468ca3a2115a2466b79305bce482",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 1516,
+                "char_start": 14,
+                "page_number": 13
+              }
+            ],
+            "text": "Article 15: Sans préjudice des dispositions de l’article  14, les établissements de \npaiement sont tenus d’appliquer , selon le niveau du compte, les règles \nd’identification minimales des clients ci-après : \n- Compte de paiement de niveau 1  : L’ouverture requiert l’établissement \nd’une fiche d’identification conforme à l’annexe n°1 à la présente circulaire, \ncomportant les informations pertinentes d’identification du client, \nappuyées par tout document officiel, dont une copie est jointe à ladite fiche. \n- Compte de paiement de niveau 2  : L’ouverture requiert l’établissement \nd’une fiche d’identification conforme à l’annexe n° 2 de la présente \ncirculaire, comportant les informations pertinentes d’identification du \nclient, appuyées par tout document officiel, dont une copie est jointe à ladite \nfiche. \n- Compte de paiement de niveau 3  : L’ouverture requiert l’établissement \nd’une fiche d’identification conforme à l’annexe n°3 à la présente circulaire, \ncomportant les informations pertinentes d’identification du client, \nappuyées par tout document officiel, dont une copie est jointe à ladite fiche.  \n- Compte de paiement commerçant :  L’ouverture du compte commerçant \nnécessite l’établissement d’une fiche d’identification commerçant \nconformément à l’annexe n°4 à la présente circulaire. \nLes éléments d’identification des clients et les documents y afférents doivent être \nconservés par l’établissement de paiement  selon les exigences légales et \nréglementaires en vigueur.  \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "article",
+            "label": "Article 19",
+            "number": "19",
+            "parent_provision_id": null,
+            "provision_id": "prov_d1af2a0eb9916378b9ceb1688306592b",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 1836,
+                "char_start": 1012,
+                "page_number": 16
+              },
+              {
+                "char_end": 765,
+                "char_start": 0,
+                "page_number": 17
+              }
+            ],
+            "text": "Article 19:  L’ouverture d’un compte de paiement est subordonnée à la conclusion \nd’une convention entre l’établissement de paiement et le client. Un exemplaire de \nla convention, sous format physique ou numérique, doit être mis à la disposition \ndu client. \nLa convention doit notamment fixer les conditions générales d’ouverture, de \nfonctionnement et de clôture du compte ainsi que les modalités de traitement des \ncomptes des personnes décédées. Elle doit également définir les droits attachés au \ncompte, la liste des services fournis, leur description ainsi que les commissions et \nfrais applicables. \nLorsque l’ouverture du compte de paiement est réalisée, par voie électronique, \nconformément aux dispositions de l’article  18 de la présente circulaire, \nl’établissement de paiement est tenu de garantir au client : \n   \n \n 17  \n \n− Un accès permanent au contenu de la convention. \n− La possibilité de consulter, de télécharger et  de conserver la convention \npréalablement à son acceptation. \n− La possibilité de manifester son consentement de manière expresse, par \nvoie électronique, selon un procédé fiable d’identification garantissant le \nlien entre le client et la convention acceptée. \n− La faculté d’exercer le droit de rétractation si aucun service n’a été utilisé \ndurant le délai légal prévu par la loi n°2000-83 du 9 août 2000, relative aux \néchanges et au commerce électroniques. \nLes modalités de conclusion et de conservation de la convention sous forme \nélectronique doivent garantir son intégrité et sa valeur probante, conformément à \nla législation en vigueur. \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "article",
+            "label": "Article 52",
+            "number": "52",
+            "parent_provision_id": null,
+            "provision_id": "prov_c54fee71ede561dbe9964b904817d664",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 1562,
+                "char_start": 1145,
+                "page_number": 33
+              },
+              {
+                "char_end": 16,
+                "char_start": 0,
+                "page_number": 34
+              }
+            ],
+            "text": "Article 52:  La présente circulaire abroge et remplace la circulaire n°2018-16 du \n31 décembre 2018 , relative aux règles régissant l’activité et le fonctionnement \ndes établissements de paiement et entre en vigueur dans un délai de trois mois à \npartir de la date de sa publication.  \n                                           Le Gouverneur, \n  \n                                                Fethi Zouhaier Nouri \n   \n \n 34  \n \n \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "annex",
+            "label": "Annexe 1 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre",
+            "number": "1",
+            "parent_provision_id": null,
+            "provision_id": "prov_c6f8b3812e3b03419ae244cef0abb77e",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 591,
+                "char_start": 16,
+                "page_number": 34
+              },
+              {
+                "char_end": 16,
+                "char_start": 0,
+                "page_number": 35
+              }
+            ],
+            "text": "Annexe 1 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre \n2026  \nELEMENTS D’IDENTIFICATION DES CLIENTS TITULAIRES DES COMPTES DE \nPAIEMENT DE NIVEAU 1 \n \n- Nom et prénom \n- Date et lieu de naissance \n- Nationalité \n- Profession \n- Numéro de téléphone \n- Numéro de la carte nationale d’identité ou numéro du passeport ou de la carte de \nséjour ou tout document d’identité délivré par une autorité étrangère reconnue  \n- Adresse officielle si différente de la carte nationale d’identité \n- Revenu mensuel estimé  \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n   \n \n 35  \n \n \n"
+          }
+        ],
+        "question": "Quel est le lien entre l'article 15 et l'article 14 de la circulaire n°2026-10 ?",
+        "relationships": [
+          {
+            "basis": "inferred",
+            "evidence_ids": [
+              "ev_da53b495f8511a596477b4a3c76c8743"
+            ],
+            "inference_id": "inf_5ad06ec7a3650a388d6901e4a308e949",
+            "lexical_match": {
+              "evidence_id": "ev_da53b495f8511a596477b4a3c76c8743",
+              "match_end": 48,
+              "match_start": 37,
+              "rule": "regulagraph.lexical.v1"
+            },
+            "relation_type": "references",
+            "relationship_id": "rel_c3bd667fd3df074f734687493f0a6cc8",
+            "source_provision_id": "prov_b54d468ca3a2115a2466b79305bce482",
+            "status": "candidate",
+            "target_document_id": null,
+            "target_provision_id": "prov_df72561d3bdfcaaa38e3189560ce2633"
+          }
+        ],
+        "report_id": "rep_232ef989c9f4892761c16d868881c65e"
+      },
+      "rescored": {
+        "case_id": "E05",
+        "phenomenon": "negation_qualifier",
+        "polarity": "positive",
+        "model_outcome": "ok",
+        "retrieved_provision_ids": [
+          "prov_d10d2d0ac395e8a2056c0eb3def8c8a5",
+          "prov_29647def4a6b58ce8ab203f4dd6d0274",
+          "prov_c6a23c9209200171ba825f4607c238f3",
+          "prov_df72561d3bdfcaaa38e3189560ce2633",
+          "prov_b54d468ca3a2115a2466b79305bce482",
+          "prov_d1af2a0eb9916378b9ceb1688306592b",
+          "prov_c54fee71ede561dbe9964b904817d664",
+          "prov_c6f8b3812e3b03419ae244cef0abb77e"
+        ],
+        "retrieved_source": true,
+        "retrieved_target": true,
+        "published": [
+          {
+            "relationship_id": "rel_c3bd667fd3df074f734687493f0a6cc8",
+            "source": "bct-2026-10-fr Article 15",
+            "relation_type": "references",
+            "target": "bct-2026-10-fr Article 14",
+            "status": "candidate",
+            "lexical_match": true
+          }
+        ],
+        "rejected": 0,
+        "correct": true,
+        "errors": [],
+        "citation_ok": true,
+        "coverage_complete": true,
+        "validated": true
+      }
+    }
+  ],
+  "rescore_note": "'rescored' re-applies the current scoring (app/services/evaluation.py) to the recorded model output; 'score' is what the run itself recorded."
+}

@@ -226,3 +226,88 @@ def test_live_runner_refuses_without_flag_or_explicit_cases(monkeypatch) -> None
     settings = Settings(_env_file=None)
     assert module.run_live(settings, confirmed=False, only=["E01"], reasoning_effort="low") == 2
     assert module.run_live(settings, confirmed=True, only=[], reasoning_effort="low") == 2
+
+
+def test_completion_token_default_is_2048_and_bounded(settings_factory) -> None:
+    assert settings_factory().meta_max_completion_tokens == 2048
+    assert settings_factory(meta_max_completion_tokens=4096).meta_max_completion_tokens == 4096
+    for bad in (0, -1, 32769):
+        with pytest.raises(ValueError):
+            settings_factory(meta_max_completion_tokens=bad)
+
+
+def test_negative_case_with_target_missing_from_prompt_is_not_validated(view) -> None:
+    case = EvalCase(**{**NEGATIVE, "forbidden": [{"source_doc": "old", "source_number": "1",
+                                                  "target_doc": "new", "target_number": "2"}]})
+    sources, provisions = view.scope(case)
+    only_source = [view.find("old", "article", "1", False)]
+    adapter = ReplayAdapter.from_text('{"relationships": []}')
+    out = investigate(case.question, sources, provisions, adapter, Settings(_env_file=None), selected=only_source,
+                      clock=lambda: WHEN)
+    result = score_case(case, out, view)
+    assert result.correct  # nothing forbidden was published ...
+    assert result.retrieved_target is False and not result.coverage_complete
+    assert not result.validated  # ... but the case tested nothing about the target
+
+
+def test_live_runner_preflight_blocks_the_call_when_a_required_provision_is_missing(real_view, monkeypatch) -> None:
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "scripts" / "run_eval.py"
+    spec = importlib.util.spec_from_file_location("run_eval", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    class NoCalls:
+        def __init__(self, *a, **k):
+            pass
+
+        def complete(self, *a, **k):
+            pytest.fail("the API must not be called when preflight fails")
+
+    written = {}
+    monkeypatch.setattr(module, "load_corpus_view", lambda s: real_view)
+    monkeypatch.setattr(module, "retrieve", lambda *a, **k: [])  # nothing retrieved
+    monkeypatch.setattr(module, "MetaModelAdapter", NoCalls)
+    monkeypatch.setattr(module, "_write", lambda kind, payload: written.setdefault(kind, payload) and Path("x"))
+    assert module.run_live(Settings(_env_file=None), confirmed=True, only=["E13"], reasoning_effort="low") == 0
+    (result,) = written["live"]["results"]
+    assert result["preflight"] == "retrieval_failure" and result["api_called"] is False
+    assert written["live"]["summary"]["api_calls"] == 0
+
+
+@pytest.mark.parametrize("replay", [{"finish_reason": "length"}, {"text": None, "refusal": "no"}, {"text": "not json"}])
+def test_negative_case_without_a_usable_answer_is_not_a_success(view, replay) -> None:
+    """E10 live run: truncated output published nothing; that must not count as a correct abstention."""
+    case = EvalCase(**NEGATIVE)
+    result = score_case(case, _outcome(view, case, [], **replay), view)
+    assert not result.correct and not result.validated
+    assert any(e.startswith("model_outcome:") for e in result.errors)
+
+
+def test_rescore_of_recorded_live_results(real_view, tmp_path, monkeypatch) -> None:
+    """Recorded live runs: the truncated E10 run and the first E13 run (target not shown) are not validated."""
+    import importlib.util
+    import shutil
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "scripts" / "run_eval.py"
+    spec = importlib.util.spec_from_file_location("run_eval", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    monkeypatch.setattr(module, "load_corpus_view", lambda s: real_view)
+    results = Path(__file__).resolve().parents[1] / "eval" / "results"
+    expected = {"live_20261030T151822Z.json": ("E13", True, False), "live_20261030T153423Z.json": ("E10", False, False),
+                "live_20261030T153246Z.json": ("E13", True, True)}
+    copies = []
+    for name in expected:
+        if not (results / name).is_file():
+            pytest.skip("recorded live results not present")
+        copies.append(Path(shutil.copy(results / name, tmp_path / name)))
+    assert module.run_rescore(Settings(_env_file=None), copies) == 0
+    for copy in copies:
+        (record,) = json.loads(copy.read_text(encoding="utf-8"))["results"]
+        case_id, correct, validated = expected[copy.name]
+        assert (record["rescored"]["case_id"], record["rescored"]["correct"], record["rescored"]["validated"]) == (
+            case_id, correct, validated)

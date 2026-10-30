@@ -340,7 +340,50 @@
           }
         ],
         "report_id": "rep_0f6f59197644c2db05330c885dd148da"
+      },
+      "rescored": {
+        "case_id": "E01",
+        "phenomenon": "explicit_repeal",
+        "polarity": "positive",
+        "model_outcome": "ok",
+        "retrieved_provision_ids": [
+          "prov_d10d2d0ac395e8a2056c0eb3def8c8a5",
+          "prov_7a77a29fc7dddcb8f6558123175eaa61",
+          "prov_3318eb490cae80d2c574dec62c4ec8e1",
+          "prov_c54fee71ede561dbe9964b904817d664",
+          "prov_c6f8b3812e3b03419ae244cef0abb77e",
+          "prov_0f8fc0e7521a6e83062f7dd6f8d09ae2",
+          "prov_658d7a4340f64ef891e6f3acf7198df4",
+          "prov_195fbc057a802f32d1bd410696a0094c"
+        ],
+        "retrieved_source": true,
+        "retrieved_target": true,
+        "published": [
+          {
+            "relationship_id": "rel_480c4f8b4ca83254f451017b3761dd30",
+            "source": "bct-2026-10-fr Article 52",
+            "relation_type": "repeals",
+            "target": "bct-2018-16-fr (document)",
+            "status": "candidate",
+            "lexical_match": true
+          },
+          {
+            "relationship_id": "rel_39a6088f2e3d234a659ecafd55c19cc3",
+            "source": "bct-2026-10-fr Article 52",
+            "relation_type": "supersedes",
+            "target": "bct-2018-16-fr (document)",
+            "status": "candidate",
+            "lexical_match": true
+          }
+        ],
+        "rejected": 0,
+        "correct": true,
+        "errors": [],
+        "citation_ok": true,
+        "coverage_complete": true,
+        "validated": true
       }
     }
-  ]
+  ],
+  "rescore_note": "'rescored' re-applies the current scoring (app/services/evaluation.py) to the recorded model output; 'score' is what the run itself recorded."
 }

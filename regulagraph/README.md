@@ -10,7 +10,7 @@ RegulaGraph is an AI agent that investigates the impact of public Central Bank o
 4. finalization;
 5. a manually written evaluation set.
 
-Every relationship is published as **`candidate`**: nothing is ever confirmed. **Live Muse calls so far:** one smoke test and a two-case pilot (E01, E13), all HTTP 200, recorded in `eval/results/` and summarised in [eval/README.md](eval/README.md). The other evaluation cases have not been run live. Graph storage and a frontend are out of scope.
+Every relationship is published as **`candidate`**: nothing is ever confirmed. **Live Muse calls so far:** 7 requests, about $0.065 in total, all HTTP 200: a smoke test plus 5 distinct cases (E01, E05, E10, E12, E13; E13 was run twice). 4 cases are validated and 1 (E10) was truncated. They are recorded in `eval/results/` and summarised in [eval/README.md](eval/README.md). Graph storage and a frontend are out of scope.
 
 ## Layout
 
@@ -90,14 +90,16 @@ Nothing here can check your credits, so every live entry point needs `META_INFER
 
 ```bash
 python scripts/smoke_test.py --confirm-paid-call                 # 1 request, <=64 tokens out (< $0.001)
-python scripts/run_eval.py live --confirm-paid-call --case E01 --max-completion-tokens 2048   # 1 request per named case; --case is required
+python scripts/run_eval.py live --confirm-paid-call --case E01   # 1 request per named case; --case is required;
+                                                                  # preflight: no call unless the case's provisions are retrieved
+python scripts/run_eval.py rescore eval/results/live_*.json       # re-apply current scoring to recorded runs (no call)
 python scripts/investigate.py "<question>" --docs ... --live --confirm-paid-call
 ```
 
 **Per-request bounds:**
 
 - at most `META_MAX_PROMPT_CHARS` characters of provision text, 24,000 by default (about 6-8k input tokens);
-- at most `META_MAX_COMPLETION_TOKENS` tokens, 1,024 by default, which per the API docs covers output plus reasoning. **The pilot showed this default is too low:** E01 used 1,922 completion tokens, 1,374 of them reasoning. Use `--max-completion-tokens 2048` or set the env value;
+- at most `META_MAX_COMPLETION_TOKENS` tokens, 2,048 by default (raised from 1,024 after the pilot: E01 used 1,922 completion tokens, 1,374 of them reasoning), which per the API docs covers output plus reasoning;
 - `temperature=0`, `reasoning_effort="low"`, and a strict JSON schema (`response_format`).
 
 At a 2,048-token cap, one investigation costs about $0.02 or less. The two pilot calls cost about $0.012 and $0.010.
@@ -138,7 +140,10 @@ Gold quotes are checked automatically against the extracted text. The cases were
 **Recorded results** (`eval/results/`):
 
 - **Structural probes** (`python scripts/run_eval.py structural`, no model). Hand-made proposals go through the real pipeline. See `eval/README.md` for the recorded run. Gold answers are accepted. Paraphrased quotes, fabricated targets, reversed directions and quotes taken from unrelated provisions are rejected. Wrong relation types and forbidden links that cite a real quote **are published as candidates**, which is the measured limit of structural validation.
-- **Live pilot:** two cases, E01 and E13, both passed. E13 has a caveat: its target was not in the prompt because of a retrieval regression, since fixed. The details are in `eval/README.md`. Two cases are not a benchmark, and no accuracy is claimed.
+- **Live runs:** 5 distinct cases.
+  - **Validated, 4:** E01 (repeal), E12 (implements, with direction), E05 ("sans préjudice": references) and the E13 re-run (qualified reference: references only).
+  - **Not validated:** E10 was truncated, because reasoning used the whole 2,048-token budget. The first E13 run is not validated either, since its target was not in the prompt.
+  - Details are in `eval/README.md`. This is not a benchmark, and no accuracy is claimed.
 
 ## Configuration
 
@@ -148,7 +153,7 @@ Gold quotes are checked automatically against the extracted text. The cases were
 | `META_INFERENCE_ENABLED` | `false` | **Billing safeguard.** No request is sent unless this is `true` |
 | `META_API_BASE_URL` | `https://api.meta.ai/v1` | API base URL |
 | `META_MODEL_ID` | `muse-spark-1.3` | Model identifier |
-| `META_MAX_COMPLETION_TOKENS` | `1024` | Upper limit on `max_completion_tokens` (output plus reasoning) for every request |
+| `META_MAX_COMPLETION_TOKENS` | `2048` | Upper limit on `max_completion_tokens` (output plus reasoning) for every request; 1-32768. `run_eval.py --max-completion-tokens` overrides it per run |
 | `META_MAX_PROMPT_CHARS` | `24000` | Upper limit on provision text in one prompt |
 | `META_REQUEST_TIMEOUT_SECONDS` | `60` | HTTP timeout |
 | `MAX_PDF_BYTES` | `20000000` | Ingestion limit, checked before the file is read or parsed |
@@ -178,7 +183,7 @@ Gold quotes are checked automatically against the extracted text. The cases were
 
 ## Known limitations
 
-- **Live evidence is thin.** One smoke test and two pilot cases. Model quality across the evaluation set is unmeasured.
+- **Live evidence is thin.** 5 of 13 cases have been run live. Reasoning can exhaust the 2,048-token budget on large two-document prompts (E10).
 - **Semantic errors pass validation.** A wrong relation type, or a link to the wrong but real target, is published as a candidate. Review is required before any use.
 - **Retrieval is lexical** (BM25 plus bonuses) and may miss the relevant provision. The evaluation records retrieval hits per case.
 - **Segmentation fits BCT French layouts only.** Headings must start a line and carry a separator. Annexes are recognised only at the top of a page. Replacement text for another instrument's annex is not marked as quoted.

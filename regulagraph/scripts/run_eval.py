@@ -26,16 +26,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.config import Settings  # noqa: E402
 from app.services.evaluation import (  # noqa: E402
+    approx_cost_usd,
     load_cases,
+    required_provisions,
     load_corpus_view,
     retrieval_recall,
     score_case,
     structural_probes,
 )
-from app.services.investigator import investigate  # noqa: E402
+from app.services.investigator import investigate, retrieve  # noqa: E402
 from app.services.meta_client import MetaModelAdapter  # noqa: E402
 
 RESULTS = Path(__file__).resolve().parents[1] / "eval" / "results"
+# Outcomes that indicate an API/schema problem rather than a case-specific answer.
+SYSTEMIC_FAILURES = {"disabled", "invalid_request", "provider_error", "malformed"}
 
 
 def _write(kind: str, payload: dict) -> Path:
@@ -99,30 +103,50 @@ def run_live(settings: Settings, confirmed: bool, only: list[str], reasoning_eff
         if only and case.id not in only:
             continue
         sources, provisions = view.scope(case)
-        outcome = investigate(case.question, sources, provisions, adapter, settings,
+        # Preflight: the provisions the case needs must be in the prompt, or no call is made.
+        retrieved = retrieve(case.question, [p for ps in provisions.values() for p in ps], sources,
+                             max_chars=settings.meta_max_prompt_chars)
+        shown = {p.provision_id for p in retrieved}
+        required = required_provisions(case, view)
+        missing = sorted(label for label, pid in required.items() if pid not in shown)
+        if missing:
+            results.append({"case_id": case.id, "question": case.question, "preflight": "retrieval_failure",
+                            "missing": missing, "required": sorted(required), "api_called": False})
+            print(f"{case.id} preflight=retrieval_failure missing={missing} (no API call)")
+            continue
+        outcome = investigate(case.question, sources, provisions, adapter, settings, selected=retrieved,
                               reasoning_effort=reasoning_effort)  # one call, no retry
         scored = score_case(case, outcome, view)
-        results.append({"case_id": case.id, "question": case.question, "prompt_chars": outcome.prompt_chars,
+        u = outcome.model_call.usage
+        cost = approx_cost_usd(u.prompt_tokens, u.completion_tokens) if u else None
+        results.append({"case_id": case.id, "question": case.question, "preflight": "ok",
+                        "required": sorted(required), "api_called": True,
+                        "prompt_chars": outcome.prompt_chars, "approx_cost_usd": cost,
                         "proposals_received": outcome.proposals_received,
                         "score": scored.model_dump(), "model_call": outcome.model_call.model_dump(),
                         "rejected": [r.model_dump() for r in outcome.rejected],
                         "content_digest": outcome.finalized.content_digest,
                         "report": json.loads(outcome.finalized.snapshot)})
-        if outcome.model_call.usage:
-            usage.update(outcome.model_call.usage.model_dump(exclude={"completion_tokens_details"}))
+        if u:
+            usage.update(u.model_dump(exclude={"completion_tokens_details"}))
+            usage["reasoning_tokens"] += u.reasoning_tokens
         print(f"{case.id} {case.phenomenon:36} outcome={outcome.model_call.outcome:14} "
-              f"correct={scored.correct} errors={scored.errors}")
-        if outcome.model_call.outcome in {"disabled", "provider_error"} and outcome.model_call.http_status in {None, 401, 402, 403}:
-            print("stopping: inference is disabled or the provider refused the credentials/billing", file=sys.stderr)
+              f"correct={scored.correct} validated={scored.validated} errors={scored.errors} cost~${cost}")
+        if outcome.model_call.outcome in SYSTEMIC_FAILURES:
+            print(f"stopping: systemic failure ({outcome.model_call.outcome}); no further calls", file=sys.stderr)
             break
     summary = {
         "source": "live Meta Model API (not a replay)",
         "max_completion_tokens": settings.meta_max_completion_tokens,
         "reasoning_effort": reasoning_effort,
         "max_prompt_chars": settings.meta_max_prompt_chars,
-        "cases_run": len(results),
-        "correct": sum(1 for r in results if r["score"]["correct"]),
+        "cases_requested": only,
+        "api_calls": sum(1 for r in results if r.get("api_called")),
+        "retrieval_failures": [r["case_id"] for r in results if r.get("preflight") == "retrieval_failure"],
+        "correct": sum(1 for r in results if r.get("score", {}).get("correct")),
+        "validated": sum(1 for r in results if r.get("score", {}).get("validated")),
         "tokens": dict(usage),
+        "approx_cost_usd": round(sum(r.get("approx_cost_usd") or 0 for r in results), 5),
         "model": settings.meta_model_id,
     }
     print(json.dumps(summary, indent=2))
@@ -131,9 +155,48 @@ def run_live(settings: Settings, confirmed: bool, only: list[str], reasoning_eff
     return 0
 
 
+class _StoredOutcome:
+    """The parts of a recorded live outcome that scoring reads (no model call)."""
+
+    def __init__(self, record: dict) -> None:
+        from types import SimpleNamespace
+
+        from app.models.schemas import InvestigationReport
+        from app.services.investigator import ModelCallRecord, Rejection
+
+        report = InvestigationReport.model_validate(record["report"])
+        self.finalized = SimpleNamespace(report=lambda: report)
+        self.model_call = ModelCallRecord.model_validate(record["model_call"])
+        self.rejected = [Rejection.model_validate(r) for r in record["rejected"]]
+        self.retrieved_provision_ids = record["score"].get("retrieved_provision_ids") or [
+            p.provision_id for p in report.provisions
+        ]
+
+
+def run_rescore(settings: Settings, paths: list[Path]) -> int:
+    """Re-apply the current scoring to recorded live results. Raw records are kept; adds 'rescored'."""
+    cases = {c.id: c for c in load_cases().cases}
+    view = load_corpus_view(settings)
+    for path in paths:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        for record in data["results"]:
+            if not record.get("api_called", True):
+                continue
+            record["rescored"] = score_case(cases[record["case_id"] if "case_id" in record
+                                                  else record["score"]["case_id"]],
+                                            _StoredOutcome(record), view).model_dump()
+            r = record["rescored"]
+            print(f"{path.name} {r['case_id']} correct={r['correct']} validated={r['validated']} errors={r['errors']}")
+        data["rescore_note"] = ("'rescored' re-applies the current scoring (app/services/evaluation.py) to the "
+                                "recorded model output; 'score' is what the run itself recorded.")
+        path.write_text(json.dumps(data, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("mode", choices=["structural", "live"])
+    parser.add_argument("mode", choices=["structural", "live", "rescore"])
+    parser.add_argument("files", nargs="*", type=Path, help="rescore mode: recorded live_*.json files")
     parser.add_argument("--confirm-paid-call", action="store_true")
     parser.add_argument("--case", action="append", default=[], help="live mode: run only these case ids (required)")
     parser.add_argument("--max-completion-tokens", type=int, help="live mode: override META_MAX_COMPLETION_TOKENS")
@@ -143,6 +206,8 @@ def main() -> int:
     settings = Settings(**overrides)  # validated: 0 < tokens <= 32768
     if args.mode == "structural":
         return run_structural(settings)
+    if args.mode == "rescore":
+        return run_rescore(settings, args.files)
     return run_live(settings, args.confirm_paid_call, args.case, args.reasoning_effort)
 
 

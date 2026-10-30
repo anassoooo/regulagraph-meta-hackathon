@@ -1,0 +1,355 @@
+{
+  "kind": "live_eval",
+  "summary": {
+    "source": "live Meta Model API (not a replay)",
+    "max_completion_tokens": 2048,
+    "reasoning_effort": "low",
+    "max_prompt_chars": 24000,
+    "cases_requested": [
+      "E12"
+    ],
+    "api_calls": 1,
+    "retrieval_failures": [],
+    "correct": 1,
+    "validated": 1,
+    "tokens": {
+      "prompt_tokens": 3261,
+      "completion_tokens": 1170,
+      "total_tokens": 4431,
+      "reasoning_tokens": 983
+    },
+    "approx_cost_usd": 0.00905,
+    "model": "muse-spark-1.3"
+  },
+  "results": [
+    {
+      "case_id": "E12",
+      "question": "En application de quel article de la circulaire n°2026-10 l'article 47 est-il pris ?",
+      "preflight": "ok",
+      "required": [
+        "source bct-2026-10-fr Article  47",
+        "target bct-2026-10-fr article 8"
+      ],
+      "api_called": true,
+      "prompt_chars": 11798,
+      "approx_cost_usd": 0.00905,
+      "proposals_received": 1,
+      "score": {
+        "case_id": "E12",
+        "phenomenon": "implementation_direction",
+        "polarity": "positive",
+        "model_outcome": "ok",
+        "retrieved_provision_ids": [
+          "prov_d10d2d0ac395e8a2056c0eb3def8c8a5",
+          "prov_7a77a29fc7dddcb8f6558123175eaa61",
+          "prov_32b61ecb6bb641bdcafd07acf9b472c8",
+          "prov_3318eb490cae80d2c574dec62c4ec8e1",
+          "prov_c6f8b3812e3b03419ae244cef0abb77e",
+          "prov_0f8fc0e7521a6e83062f7dd6f8d09ae2",
+          "prov_658d7a4340f64ef891e6f3acf7198df4",
+          "prov_195fbc057a802f32d1bd410696a0094c"
+        ],
+        "retrieved_source": true,
+        "retrieved_target": true,
+        "published": [
+          {
+            "relationship_id": "rel_7199d59672a7ad82c010db46e2152b68",
+            "source": "bct-2026-10-fr Article  47",
+            "relation_type": "implements",
+            "target": "bct-2026-10-fr Article 8",
+            "status": "candidate",
+            "lexical_match": true
+          }
+        ],
+        "rejected": 0,
+        "correct": true,
+        "errors": [],
+        "citation_ok": true,
+        "coverage_complete": true,
+        "validated": true
+      },
+      "model_call": {
+        "outcome": "ok",
+        "model_id": "muse-spark-1.3",
+        "response_id": "chatcmpl-01a18d71-b922-70f6-a340-416cb750d39e",
+        "http_status": 200,
+        "finish_reason": "stop",
+        "refusal": null,
+        "usage": {
+          "prompt_tokens": 3261,
+          "completion_tokens": 1170,
+          "total_tokens": 4431,
+          "completion_tokens_details": {
+            "reasoning_tokens": 983
+          }
+        },
+        "latency_ms": 6893.3,
+        "error": null,
+        "max_completion_tokens": 2048,
+        "reasoning_effort": "low",
+        "raw_text": "{\"relationships\": [{\"quotes\": [{\"provision_id\": \"prov_3318eb490cae80d2c574dec62c4ec8e1\", \"text\": \"En application de l\\u2019article 8 de la pr\\u00e9sente circulaire, le s dossiers\"}], \"rationale\": \"L'article 47 d\\u00e9clare express\\u00e9ment \\u00eatre pris en application de l'article 8 de la m\\u00eame circulaire.\", \"relation_type\": \"implements\", \"source_provision_id\": \"prov_3318eb490cae80d2c574dec62c4ec8e1\", \"target_id\": \"prov_32b61ecb6bb641bdcafd07acf9b472c8\", \"target_kind\": \"provision\"}]}"
+      },
+      "rejected": [],
+      "content_digest": "0dbb454a30be59987ca018b212c1f9b3a856631993c20fb35d756352816f5f52",
+      "report": {
+        "document_ids": [
+          "doc_fe31431614e7eeee7b163583c02af0e3"
+        ],
+        "evidence": [
+          {
+            "char_end": 1148,
+            "char_start": 1078,
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "evidence_id": "ev_1f016209fecb54629325976af46088fb",
+            "kind": "verified_extract",
+            "page_number": 30,
+            "quote": "En application de l’article 8 de la présente circulaire, le s dossiers"
+          }
+        ],
+        "generated_at": "2026-10-30T15:33:22.752084Z",
+        "inferences": [
+          {
+            "inference_id": "inf_cc4379a858723fd638a06d16dd7b355c",
+            "kind": "model_inference",
+            "model_id": "muse-spark-1.3",
+            "statement": "L'article 47 déclare expressément être pris en application de l'article 8 de la même circulaire.",
+            "supporting_evidence_ids": [
+              "ev_1f016209fecb54629325976af46088fb"
+            ]
+          }
+        ],
+        "provisions": [
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "preamble",
+            "label": "(préambule)",
+            "number": null,
+            "parent_provision_id": null,
+            "provision_id": "prov_d10d2d0ac395e8a2056c0eb3def8c8a5",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 1404,
+                "char_start": 0,
+                "page_number": 1
+              },
+              {
+                "char_end": 1271,
+                "char_start": 0,
+                "page_number": 2
+              }
+            ],
+            "text": "   \n \n 1  \n \n \n                                                                                   Tunis, le 25 septembre 2026. \n \n \n \n \nCirculaire de la Banque Centrale de Tunisie n°2026-10 \n \nObjet : Règles régissant l’activité et le fonctionnement des établissements de \npaiement. \nLe Gouverneur de la Banque Centrale de Tunisie, \nVu la loi organique n°2004 -63 du 27 juillet 2004 , relative à la protection des \ndonnées à caractère personnel,  \nVu la loi organique n°2015 -26 du 7 août 2015, relative à la lutte contre le \nterrorisme et à la répression du blanchiment d’argent telle que modifiée et \ncomplétée par la loi organique n°2019-9 du 23 janvier 2019,  \nVu la loi n°2000 -83 du 9 ao ût 2000, relative aux échanges et au commerce \nélectroniques, \nVu la loi n° 2005-51 du 27 juin 2005, relative au transfert électronique de fonds,  \nVu la loi n°2016 -35 du 25 avril 2016 , portant fixation du statut de la Banque \nCentrale de Tunisie notamment son article 8,  \nVu la loi n°2016-48 du 11 juillet 2016, relative aux banques et aux établissements \nfinanciers notamment ses articles 20 et 21,  \nVu le décret-loi n°2023-17 du 11 mars 2023, relatif à la cybersécurité, \nVu la circulaire aux établissements de crédit n° 2006-1 du 28 mars 2006, relative \nà la réglementation des conditions des opérations d’externalisation, \nVu la circulaire aux établissements de crédit n°2006-19 du 28 novembre 2006 , \n   \n \n 2  \n \nrelative au contrôle interne dans les établissements de crédit,  \nVu la circulaire aux banques et aux établissements financiers n°2017 -6 du 31 \njuillet 2017, relative au reporting comptable, prudentiel et statistique à la Banque \nCentrale de Tunisie,   \nVu la circulaire aux banques et aux établissements financiers n°2017 -08 du 19 \nseptembre 2017, relative aux dispositif et règles de contrôle interne en matière \nde lutte contre le blanchiment d’argent, le financement du terrorisme et le \nfinancement de la prolifération des armes de destruction massive, telle que \nmodifiée et comp létée par les textes subséquents et notamment la circulaire \nn°2025-17 du 22 décembre 2025,  \nVu la circulaire de la Banque Centrale de Tunisie n°2018 -16 du 31 décembre \n2018, relative aux règles régissant l’activité et le fonctionnement des \nétablissements de paiement, \nVu la circulaire de la Banque Centrale de Tunisie n°2020 -11 du 18 mai 2020, \nrelative aux  conditions de fourniture des services de paiement mobile \ndomestique, \nVu l’avis n° 2026-10 du Comité de Contrôle de la Conformité en date du 25 \nseptembre 2026 , tel que prévu par l’article 42 de la loi n°2016 -35 du 25 avril \n2016 portant fixation du statut de la Banque Centrale de Tunisie. \nDécide : \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "article",
+            "label": "Article premier",
+            "number": "1",
+            "parent_provision_id": null,
+            "provision_id": "prov_7a77a29fc7dddcb8f6558123175eaa61",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 1689,
+                "char_start": 1271,
+                "page_number": 2
+              },
+              {
+                "char_end": 13,
+                "char_start": 0,
+                "page_number": 3
+              }
+            ],
+            "text": "Article premier : La présente circulaire a pour objet de fixer les conditions \nd’application des articles 20 et 21 de la loi n°2016-48 relative aux banques et aux \nétablissements financiers.   Elle définit notamment les conditions d’exercice de \nl’activité des établissements de paiement et les exigences spécifiques en matière \nde gouvernance , de contrôle interne et  de reporting à la Banque Centrale de \nTunisie.  \n   \n \n 3  \n \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "article",
+            "label": "Article 8",
+            "number": "8",
+            "parent_provision_id": null,
+            "provision_id": "prov_32b61ecb6bb641bdcafd07acf9b472c8",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 789,
+                "char_start": 13,
+                "page_number": 7
+              }
+            ],
+            "text": "Article 8 : Conformément à la législation en vigueur , les établissements de \npaiement sont tenus de notifier à la Banque Centrale de Tunisie dans un délai ne \ndépassant pas sept jours  ouvrables, toute désignation du président  du conseil \nd’administration ou du conseil de surveillance , d’un membre du conseil \nd’administration ou du conseil de surveillance, du directeur général, du directeur \ngénéral adjoint et du président ou d’un membre du directoire. \nLa Banque Centrale de Tunisie peut s’opposer à ladite désignation dans un délai \nd’un mois à compter de la date de la réception d’un dossier complet comprenant \nles documents requis. \nLe dossier soumis à la Banque Centrale de Tunisie doit comporter les documents \nvisés par l’article 47 de la présente circulaire. \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "article",
+            "label": "Article  47",
+            "number": "47",
+            "parent_provision_id": null,
+            "provision_id": "prov_3318eb490cae80d2c574dec62c4ec8e1",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 1780,
+                "char_start": 1063,
+                "page_number": 30
+              },
+              {
+                "char_end": 751,
+                "char_start": 0,
+                "page_number": 31
+              }
+            ],
+            "text": "Article  47 :  En application de l’article 8 de la présente circulaire, le s dossiers \ndes nominations à transmettre à la Banque Centrale de Tunisie doi vent \ncomporter :  \n- Une lettre de motivation signée par le président d u conseil \nd’administration ou de surveillance relatant notamment les motifs du \nchoix de la personne en question, sa contribution attendue au \nrenforcement des compétences collective des autres membres du conseil \nd’administration ou de surveillance ou de l’organe de direction.  \n- Un curriculum vitae détaillé de la personne désignée. \n- Une copie d’une pièce d’identité de la personne désignée. \n- Un extrait du casier judiciaire de la personne désignée délivré depuis \nmoins de 3 mois. \n   \n \n 31  \n \n- Une déclaration sur l’honneur signée par la personne désignée par \nlaquelle elle atteste qu’elle n’est pas frappée par les interdictions légales, \nétablie suivant le modèle en annexe n° 6 à la présente circulaire. \n- Une déclaration sur l’honneur signée par le président d u conseil  \nd’administration ou de surveillance , par laquelle il atteste que la \npersonne désignée ne se trouve pas en situation de conflit d’intérêts. \nLa Banque Centrale de Tunisie peut, dans le cadre de l’examen de ce dossier, \ndemander aux établissements de paiement de lui communiquer tout \nrenseignement ou document complémentaire qu’elle juge utile et ce, dans un \ndélai n’excédant pas quinze (15) jours à  compter de la date de  réception du \ndossier. \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "annex",
+            "label": "Annexe 1 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre",
+            "number": "1",
+            "parent_provision_id": null,
+            "provision_id": "prov_c6f8b3812e3b03419ae244cef0abb77e",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 591,
+                "char_start": 16,
+                "page_number": 34
+              },
+              {
+                "char_end": 16,
+                "char_start": 0,
+                "page_number": 35
+              }
+            ],
+            "text": "Annexe 1 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre \n2026  \nELEMENTS D’IDENTIFICATION DES CLIENTS TITULAIRES DES COMPTES DE \nPAIEMENT DE NIVEAU 1 \n \n- Nom et prénom \n- Date et lieu de naissance \n- Nationalité \n- Profession \n- Numéro de téléphone \n- Numéro de la carte nationale d’identité ou numéro du passeport ou de la carte de \nséjour ou tout document d’identité délivré par une autorité étrangère reconnue  \n- Adresse officielle si différente de la carte nationale d’identité \n- Revenu mensuel estimé  \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n   \n \n 35  \n \n \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "annex",
+            "label": "Annexe 2 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre",
+            "number": "2",
+            "parent_provision_id": null,
+            "provision_id": "prov_0f8fc0e7521a6e83062f7dd6f8d09ae2",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 896,
+                "char_start": 16,
+                "page_number": 35
+              },
+              {
+                "char_end": 14,
+                "char_start": 0,
+                "page_number": 36
+              }
+            ],
+            "text": "Annexe 2 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre \n2026 \nELEMENTS D’IDENTIFICATION DES CLIENTS TITULAIRES DES COMPTES DE \nPAIEMENT DE NIVEAU 2 \n \nI- Pour les personnes physiques \n- Nom et prénom \n- Date et lieu de naissance \n- Nationalité \n- Profession \n- Numéro de la carte nationale d’identité ou numéro du passeport ou de la carte de \nséjour ou tout document d’identité délivré par une autorité étrangère reconnue  \n- Adresse officielle \n- Revenu mensuel estimé \n \nII -Pour les personnes morales \n- Dénomination ou raison sociale \n- Adresse du siège social \n- Forme juridique \n- Mandats et pouvoirs (Nom, prénom de la personne habilitée à mouvementer le \ncompte et spécimen de signature) \n- Extrait récent du registre national des entreprises \n- Bénéficiaire(s) effectif(s)  \n- Tout élément permettant d’apprécier la situation financière \n \n \n   \n \n 36  \n \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "annex",
+            "label": "Annexe 3 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre",
+            "number": "3",
+            "parent_provision_id": null,
+            "provision_id": "prov_658d7a4340f64ef891e6f3acf7198df4",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 947,
+                "char_start": 14,
+                "page_number": 36
+              },
+              {
+                "char_end": 16,
+                "char_start": 0,
+                "page_number": 37
+              }
+            ],
+            "text": "Annexe 3 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre \n2026 \nELEMENTS D’IDENTIFICATION DES CLIENTS TITULAIRES DES COMPTES DE \nPAIEMENT DE NIVEAU 3 \n \nI- Pour les personnes physiques \n- Nom et prénom \n- Date et lieu de naissance \n- Nationalité \n- Numéro de la  carte nationale d’identité ou numéro du passeport ou de la carte de \nséjour ou tout document d’identité délivré par une autorité étrangère reconnue  \n- Adresse officielle \n- Profession exercée  \n- Déclaration de la source du revenu \n \nII -Pour les personnes morales \n \n- Dénomination ou raison sociale \n- Adresse du siège social \n- Forme juridique \n- Nature d’activité \n- Extrait récent du registre national des entreprises  \n- Mandats et pouvoirs (Nom, prénom de la personne habilitée à mouvementer le \ncompte et spécimen de signature) \n- Tout élément permettant d’apprécier la situation financière \n- Bénéficiaire(s) effectif(s)  \n \n \n \n \n \n   \n \n 37  \n \n \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "annex",
+            "label": "Annexe 4 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre",
+            "number": "4",
+            "parent_provision_id": null,
+            "provision_id": "prov_195fbc057a802f32d1bd410696a0094c",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 1081,
+                "char_start": 16,
+                "page_number": 37
+              },
+              {
+                "char_end": 18,
+                "char_start": 0,
+                "page_number": 38
+              }
+            ],
+            "text": "Annexe 4 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre \n2026 \n \nELEMENTS D’IDENTIFICATION DES TITULAIRES DE COMPTES COMMERÇANTS \n \nI- Pour les commerçants personnes physiques \n- Nom et prénom \n- Date et lieu de naissance \n- Nationalité \n- Numéro du carte nationale d’identité ou numéro du passeport  \n- Adresse officielle et adresse de l’activité commerciale (si différente) \n- Identifiant au Registre National des Entreprises \n- Source des revenus liés à l’activité \n- Bénéficiaire effectif \n \nII -Pour les commerçants personne morale \n- Dénomination ou raison sociale \n- Forme juridique \n- Objet social, nature de l’activité et secteur d’activité \n- Adresse du siège social \n- Identifiant au registre national des entreprises \n- Identité du/des représentant(s) légal(aux) et des personnes habilitées à faire \nfonctionner le compte \n- Mandats et pouvoirs  \n- Le ou les bénéficiaires effectifs  \n- Tout élément permettant d’apprécier la situation financière \n- Zone géographique d’activité \n- Profil transactionnel attendu (12 mois) \n \n   \n \n 38  \n \n \n \n"
+          }
+        ],
+        "question": "En application de quel article de la circulaire n°2026-10 l'article 47 est-il pris ?",
+        "relationships": [
+          {
+            "basis": "inferred",
+            "evidence_ids": [
+              "ev_1f016209fecb54629325976af46088fb"
+            ],
+            "inference_id": "inf_cc4379a858723fd638a06d16dd7b355c",
+            "lexical_match": {
+              "evidence_id": "ev_1f016209fecb54629325976af46088fb",
+              "match_end": 29,
+              "match_start": 20,
+              "rule": "regulagraph.lexical.v1"
+            },
+            "relation_type": "implements",
+            "relationship_id": "rel_7199d59672a7ad82c010db46e2152b68",
+            "source_provision_id": "prov_3318eb490cae80d2c574dec62c4ec8e1",
+            "status": "candidate",
+            "target_document_id": null,
+            "target_provision_id": "prov_32b61ecb6bb641bdcafd07acf9b472c8"
+          }
+        ],
+        "report_id": "rep_80efdad6b8eee29bb18fb52fe7f12ed9"
+      },
+      "rescored": {
+        "case_id": "E12",
+        "phenomenon": "implementation_direction",
+        "polarity": "positive",
+        "model_outcome": "ok",
+        "retrieved_provision_ids": [
+          "prov_d10d2d0ac395e8a2056c0eb3def8c8a5",
+          "prov_7a77a29fc7dddcb8f6558123175eaa61",
+          "prov_32b61ecb6bb641bdcafd07acf9b472c8",
+          "prov_3318eb490cae80d2c574dec62c4ec8e1",
+          "prov_c6f8b3812e3b03419ae244cef0abb77e",
+          "prov_0f8fc0e7521a6e83062f7dd6f8d09ae2",
+          "prov_658d7a4340f64ef891e6f3acf7198df4",
+          "prov_195fbc057a802f32d1bd410696a0094c"
+        ],
+        "retrieved_source": true,
+        "retrieved_target": true,
+        "published": [
+          {
+            "relationship_id": "rel_7199d59672a7ad82c010db46e2152b68",
+            "source": "bct-2026-10-fr Article  47",
+            "relation_type": "implements",
+            "target": "bct-2026-10-fr Article 8",
+            "status": "candidate",
+            "lexical_match": true
+          }
+        ],
+        "rejected": 0,
+        "correct": true,
+        "errors": [],
+        "citation_ok": true,
+        "coverage_complete": true,
+        "validated": true
+      }
+    }
+  ],
+  "rescore_note": "'rescored' re-applies the current scoring (app/services/evaluation.py) to the recorded model output; 'score' is what the run itself recorded."
+}

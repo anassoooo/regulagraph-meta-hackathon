@@ -59,6 +59,36 @@ All live calls went to `https://api.meta.ai/v1/chat/completions` with the locall
 | `results/smoke_20261030T145559Z.json` | smoke test, 64-token cap, `reasoning_effort=minimal` | 200 | stop | 69 | 58 (43) | 5.6 s | $0.0003 |
 | `results/live_20261030T151756Z.json` | **E01** pilot, 2,048 cap, `low` | 200 | stop | 3,260 | 1,922 (1,374) | 8.9 s | $0.012 |
 | `results/live_20261030T151822Z.json` | **E13** pilot, 2,048 cap, `low` | 200 | stop | 3,307 | 1,467 (1,453) | 7.9 s | $0.010 |
+| `results/live_20261030T153246Z.json` | **E13** re-run (Art. 35 + 17 preflighted) | 200 | stop | 3,298 | 1,359 (1,129) | 6.3 s | $0.010 |
+| `results/live_20261030T153322Z.json` | **E12** classification/direction | 200 | stop | 3,261 | 1,170 (983) | 6.9 s | $0.009 |
+| `results/live_20261030T153355Z.json` | **E05** qualified reference | 200 | stop | 3,834 | 936 (762) | 8.0 s | $0.009 |
+| `results/live_20261030T153423Z.json` | **E10** negative (overreach) | 200 | **length** | 4,511 | 2,048 (2,046) | 9.6 s | $0.014 |
+
+Total live spend: about **$0.065** for 7 requests.
+
+**Per-case outcome**, using the current scoring. The `rescored` field in each file is produced by `python scripts/run_eval.py rescore eval/results/live_*.json`:
+
+| Case | Required provisions in prompt | Model outcome | Published (all `candidate`) | Citation | Correct | **Validated** |
+|---|---|---|---|---|---|---|
+| E01 | Art. 52 (target: whole document) | ok | repeals + supersedes, 52 → 2018-16 | exact, covers gold | yes | **yes** |
+| E13 (pilot) | Art. 35 yes, **Art. 17 no** | ok | nothing | n/a | yes | **no**: target not shown |
+| E13 (re-run) | Art. 35, Art. 17 | ok | references, 35 → 17 (allowed; no forbidden type) | exact; equals the E04 gold quote | yes | **yes** |
+| E12 | Art. 47, Art. 8 | ok | implements, 47 → 8, correct direction | exact, covers gold | yes | **yes** |
+| E05 | Art. 15, Art. 14 | ok | references, 15 → 14 | exact (keeps the double space) | yes | **yes** |
+| E10 | Art. 14 (2026-10), Art. 11 (2018-16) | **truncated** | nothing (partial output never parsed) | n/a | **no** | **no** |
+
+`validated` means correct **and** every required provision was in the prompt **and** the model gave a usable answer.
+
+**Scoring fix:** when E10 first ran, the scorer counted "published nothing" on a negative case as correct even though the model had produced no answer. That was a scoring bug. It is fixed, a regression test covers it, and the file's original `score` field still shows what the run recorded. The first E13 pilot is likewise not validated, because its target was missing.
+
+**E10 truncation:**
+
+- With both circulars in scope, the prompt was the largest so far (17,860 characters, 4,511 tokens).
+- The model spent 2,046 of the 2,048 completion tokens on reasoning and returned no content.
+- This is a case-specific budget exhaustion, not an API or schema failure.
+- It was not retried. A larger cap, or `reasoning_effort="minimal"` for that case, is a PM decision.
+
+**Citation vs semantics:** "exact" means the quote was located verbatim inside the source provision and overlaps the gold quote. Whether the relation type is right was judged against the case's `acceptable_types`, which are the author's reading of the text. Validation never confirmed it.
 
 **E01 (explicit repeal, positive): correct.**
 
@@ -77,6 +107,6 @@ All live calls went to `https://api.meta.ai/v1/chat/completions` with the locall
 
 - the strict `json_schema` response format was honoured;
 - no refusals, no truncation and no API errors occurred;
-- reasoning tokens are 70-99 % of completion tokens at `low`. At the old 1,024 default cap, E01 (1,922 completion tokens) would have been truncated and published nothing. **Use a cap of at least 2,048.**
+- reasoning tokens are 70-99 % of completion tokens at `low`. At the old 1,024 default cap, E01 (1,922 completion tokens) would have been truncated and published nothing. The default is now 2,048, and even that was exhausted once (E10).
 
-**Not run:** the remaining 11 cases (E02-E12). Two pilot cases are not a benchmark, and no accuracy figure is claimed.
+**Not run live:** E02, E03, E04, E06, E07, E08, E09, E11. Five distinct cases have been run (E01, E05, E10, E12, E13), four of them validated. That is not a benchmark, and no accuracy figure is claimed.
