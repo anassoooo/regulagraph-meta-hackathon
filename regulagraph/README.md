@@ -10,7 +10,7 @@ RegulaGraph is an AI agent that investigates the impact of public Central Bank o
 4. finalization;
 5. a manually written evaluation set.
 
-Every relationship is published as **`candidate`**: nothing is ever confirmed. **Live Muse calls so far:** 7 requests, about $0.065 in total, all HTTP 200: a smoke test plus 5 distinct cases (E01, E05, E10, E12, E13; E13 was run twice). 4 cases are validated and 1 (E10) was truncated. They are recorded in `eval/results/` and summarised in [eval/README.md](eval/README.md). Graph storage and a frontend are out of scope.
+Every relationship is published as **`candidate`**: nothing is ever confirmed. **Live Muse calls so far:** 7 requests, about $0.065 in total, all HTTP 200: a smoke test plus 5 distinct cases (E01, E05, E10, E12, E13; E13 was run twice). Under the current scorer (v2), 4 cases are validated and 1 (E10) was truncated. Historical per-run scores are kept separately and superseded. They are recorded in `eval/results/` and summarised in [eval/README.md](eval/README.md). Graph storage and a frontend are out of scope.
 
 ## Layout
 
@@ -178,6 +178,13 @@ Gold quotes are checked automatically against the extracted text. The cases were
 - **Deterministic IDs.** IDs are canonical-JSON hashes of content and position (128 bits; content digests 256 bits). Field values containing separators or look-alike types cannot collide. `report_id` identifies the run; `content_digest()` binds the findings.
 - **Extraction provenance.** Each extraction records the extractor name, version and mode, plus a `text_digest`. Corpus loading checks the PDF bytes against the manifest SHA-256 before parsing. The text digest is tamper-evident but does **not** authenticate text against PDF bytes: only re-extraction does.
 - **Structured errors.** `RegulaGraphError` (`code`, `message`, `details`) is returned as `{"error": {...}}`. Limit errors name the limit.
+- **Credential redaction** (`app/core/redaction.py`). `SecretStr` alone is not relied on. The configured key and any `Bearer <token>` are replaced with `[REDACTED]` in four places:
+  - at the provider error boundary, because a provider may echo the key;
+  - in every model-call record and parsed model output;
+  - on every log record, once `install_log_redaction` has run (the app and all scripts call it);
+  - in every file the scripts write.
+
+  `tests/test_redaction.py` echoes a dummy key from a mocked provider and checks it never appears in the outcome, the logs or a saved result.
 
 > **Scope of verification.** The checks prove that a cited passage exists at the stated location, lies inside the provision it is attributed to, and (when recorded) names the target. They do **not** prove that the passage means what the relationship says. "Sans préjudice de l'article 14" and "abroge l'article 14" pass the same structural checks. Semantic entailment is not implemented, and neither a lexical match nor anything the model says is treated as proof. `tests/test_relationships.py::test_lexical_match_is_not_semantic_support` and the structural probes keep this limit visible.
 

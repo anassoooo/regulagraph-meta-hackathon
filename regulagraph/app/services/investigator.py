@@ -30,6 +30,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.core.config import Settings
 from app.core.errors import InferenceDisabledError, InvalidModelRequestError, ModelProviderError
+from app.core.redaction import configured_secrets, redact_obj
 from app.models.schemas import (
     Evidence,
     ExtractedDocument,
@@ -444,6 +445,16 @@ def investigate(
 
 
 def _call_model(
+    adapter: ModelAdapter, messages: list[ChatMessage], settings: Settings, reasoning_effort: str
+) -> tuple[ModelCallRecord, list[Any]]:
+    """Call the model; everything it returns (error text, raw output, parsed items) is redacted."""
+    record, items = _call_model_unredacted(adapter, messages, settings, reasoning_effort)
+    secrets = configured_secrets(settings)
+    record = ModelCallRecord.model_validate(redact_obj(record.model_dump(), secrets))
+    return record, redact_obj(items, secrets)
+
+
+def _call_model_unredacted(
     adapter: ModelAdapter, messages: list[ChatMessage], settings: Settings, reasoning_effort: str
 ) -> tuple[ModelCallRecord, list[Any]]:
     model_id = settings.meta_model_id

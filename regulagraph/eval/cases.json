@@ -17,7 +17,8 @@
         "source": {"doc": "bct-2026-10-fr", "kind": "article", "number": "52", "in_annex": false},
         "target": {"kind": "document", "doc": "bct-2018-16-fr"},
         "acceptable_types": ["repeals", "supersedes"],
-        "evidence_quote": "La présente circulaire abroge et remplace la circulaire n°2018-16"
+        "evidence_quote": "La présente circulaire abroge et remplace la circulaire n°2018-16",
+        "sufficient_quotes": ["abroge et remplace la circulaire n°2018-16"]
       },
       "notes": "Article 52 of 2026-10. 'abroge et remplace' is both a repeal and a replacement, so either type is accepted."
     },
@@ -42,7 +43,8 @@
         "source": {"doc": "bct-2026-10-fr", "kind": "article", "number": "52", "in_annex": false},
         "target": {"kind": "document", "doc": "bct-2018-16-fr"},
         "acceptable_types": ["repeals", "supersedes"],
-        "evidence_quote": "La présente circulaire abroge et remplace la circulaire n°2018-16"
+        "evidence_quote": "La présente circulaire abroge et remplace la circulaire n°2018-16",
+        "sufficient_quotes": ["abroge et remplace la circulaire n°2018-16"]
       },
       "notes": "Leading question ('modifie'). The text repeals and replaces 2018-16 entirely; 'amends' is a type error."
     },

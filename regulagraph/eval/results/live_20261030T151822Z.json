@@ -278,9 +278,11 @@
         "errors": [],
         "citation_ok": null,
         "coverage_complete": false,
-        "validated": false
+        "validated": false,
+        "verdicts": [],
+        "scoring_version": 2
       }
     }
   ],
-  "rescore_note": "'rescored' re-applies the current scoring (app/services/evaluation.py) to the recorded model output; 'score' is what the run itself recorded."
+  "rescore_note": "'score' is what the run recorded (historical, scorer at run time). 'rescored' is the current scorer, version 2 (app/services/evaluation.py)."
 }

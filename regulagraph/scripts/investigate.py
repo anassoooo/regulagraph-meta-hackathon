@@ -21,6 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.config import Settings  # noqa: E402
+from app.core.redaction import configured_secrets, install_log_redaction, redact  # noqa: E402
 from app.services.evaluation import load_corpus_view  # noqa: E402
 from app.services.investigator import build_messages, investigate, retrieve  # noqa: E402
 from app.services.meta_client import MetaModelAdapter, ReplayAdapter  # noqa: E402
@@ -40,6 +41,7 @@ def main() -> int:
     args = parser.parse_args()
 
     settings = Settings()
+    install_log_redaction(settings)
     view = load_corpus_view(settings)
     sources = {view.doc_id(k): view.docs[k] for k in args.docs}
     provisions = {view.doc_id(k): view.provisions[k] for k in args.docs}
@@ -87,7 +89,7 @@ def main() -> int:
     results = ROOT / "eval" / "results"
     results.mkdir(parents=True, exist_ok=True)
     path = results / f"investigation_{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}.json"
-    path.write_text(out.model_dump_json(indent=2), encoding="utf-8")
+    path.write_text(redact(out.model_dump_json(indent=2), configured_secrets(settings)), encoding="utf-8")
     print(f"written: {path}")
     return 0
 

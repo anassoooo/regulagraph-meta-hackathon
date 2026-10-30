@@ -130,7 +130,7 @@ def test_citation_elsewhere_in_source_is_a_citation_miss(view) -> None:
     out = _outcome(view, case, [_p(view, "new", "2", "repeals", "document", view.doc_id("old"),
                                    "new", "2", "La presente circulaire")])
     result = score_case(case, out, view)
-    assert not result.correct and result.errors == ["citation_miss"]
+    assert not result.correct and result.errors == ["citation_insufficient:repeals"]
 
 
 def test_reversed_direction_is_a_direction_error(view) -> None:
@@ -140,7 +140,7 @@ def test_reversed_direction_is_a_direction_error(view) -> None:
                                    view.find("new", "article", "3", False).provision_id, "new", "1", "Objet")])
     assert out.finalized.report().relationships  # structurally valid: Article 1 quoting itself
     result = score_case(case, out, view)
-    assert "direction_error" in result.errors and not result.correct
+    assert "direction_error:implements" in result.errors and not result.correct
     assert art1.provision_id in result.published[0]["source"] or result.published[0]["source"].endswith("Article 1")
 
 
@@ -297,6 +297,7 @@ def test_rescore_of_recorded_live_results(real_view, tmp_path, monkeypatch) -> N
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     monkeypatch.setattr(module, "load_corpus_view", lambda s: real_view)
+    monkeypatch.setattr(module, "CURRENT_SUMMARY", tmp_path / "current_scoring_summary.json")
     results = Path(__file__).resolve().parents[1] / "eval" / "results"
     expected = {"live_20261030T151822Z.json": ("E13", True, False), "live_20261030T153423Z.json": ("E10", False, False),
                 "live_20261030T153246Z.json": ("E13", True, True)}
@@ -311,3 +312,86 @@ def test_rescore_of_recorded_live_results(real_view, tmp_path, monkeypatch) -> N
         case_id, correct, validated = expected[copy.name]
         assert (record["rescored"]["case_id"], record["rescored"]["correct"], record["rescored"]["validated"]) == (
             case_id, correct, validated)
+        assert record["rescored"]["scoring_version"] == 2
+        original = json.loads((results / copy.name).read_text(encoding="utf-8"))["results"][0]
+        assert record["score"] == original["score"]  # the historical score is never rewritten
+    summary = json.loads((tmp_path / "current_scoring_summary.json").read_text(encoding="utf-8"))
+    assert summary["scoring_version"] == 2 and "E10" not in summary["validated_cases_latest_run"]
+
+
+# Scoring v2 (independent review of 0b3f0a2) ------------------------------------
+
+def _repeal(view, rtype="repeals", quote="abroge la circulaire n 2018-16"):
+    return _p(view, "new", "2", rtype, "document", view.doc_id("old"), "new", "2", quote)
+
+
+def test_correct_repeal_plus_incorrect_amendment_on_same_endpoints_is_not_correct(view) -> None:
+    case = EvalCase(**POSITIVE)
+    result = score_case(case, _outcome(view, case, [_repeal(view), _repeal(view, "amends")]), view)
+    assert [v["verdict"] for v in result.verdicts] == ["match", "type_error"]
+    assert not result.correct and not result.validated
+    assert result.errors == ["type_error:amends"]
+
+
+def test_multiple_acceptable_types_on_same_endpoints_are_all_matches(view) -> None:
+    case = EvalCase(**POSITIVE)  # acceptable: repeals, supersedes
+    result = score_case(case, _outcome(view, case, [_repeal(view), _repeal(view, "supersedes")]), view)
+    assert [v["verdict"] for v in result.verdicts] == ["match", "match"]
+    assert result.correct and result.validated and result.citation_ok
+
+
+def test_correct_relationship_plus_reversed_one_is_not_correct(view) -> None:
+    case = EvalCase(**IMPLEMENTS)
+    good = _p(view, "new", "3", "implements", "provision", view.find("new", "article", "1", False).provision_id,
+              "new", "3", "En application de l article 1")
+    reversed_ = _p(view, "new", "1", "implements", "provision", view.find("new", "article", "3", False).provision_id,
+                   "new", "1", "Objet")
+    result = score_case(case, _outcome(view, case, [good, reversed_]), view)
+    assert [v["verdict"] for v in result.verdicts] == ["match", "direction_error"]
+    assert not result.correct
+
+
+@pytest.mark.parametrize("fragment", ["ab", "abroge", "2018-16", "circulaire n 2018"])
+def test_fragment_cannot_validate_a_repeal_citation(view, fragment) -> None:
+    """Any-character overlap used to accept 'ab'; the cited span must contain a sufficient span."""
+    case = EvalCase(**POSITIVE)
+    result = score_case(case, _outcome(view, case, [_repeal(view, quote=fragment)]), view)
+    assert result.verdicts[0]["verdict"] == "citation_insufficient"
+    assert result.citation_ok is False and not result.correct and not result.validated
+
+
+def test_annotated_sufficient_alternative_is_accepted_and_longer_span_contains_gold(view) -> None:
+    case = EvalCase(**{**POSITIVE, "expected": {**POSITIVE["expected"],
+                                                "evidence_quote": "La presente circulaire abroge la circulaire n 2018-16",
+                                                "sufficient_quotes": ["abroge la circulaire n 2018-16"]}})
+    alternative = score_case(case, _outcome(view, case, [_repeal(view)]), view)
+    assert alternative.correct  # the quote equals an annotated sufficient alternative
+    longer = score_case(case, _outcome(view, case, [_repeal(view, quote=(
+        "Article 2 : La presente circulaire abroge la circulaire n 2018-16."))]), view)
+    assert longer.correct  # contains the full annotated span
+    unannotated = EvalCase(**{**POSITIVE, "expected": {**POSITIVE["expected"],
+                                                       "evidence_quote": "La presente circulaire abroge la circulaire n 2018-16"}})
+    assert not score_case(unannotated, _outcome(view, unannotated, [_repeal(view)]), view).correct
+
+
+def test_confusable_target_is_a_target_error_but_other_targets_are_unscored(view) -> None:
+    case = EvalCase(**IMPLEMENTS)
+    other = _p(view, "new", "3", "references", "provision", view.find("new", "article", "2", False).provision_id,
+               "new", "3", "En application de l article 1")
+    good = _p(view, "new", "3", "implements", "provision", view.find("new", "article", "1", False).provision_id,
+              "new", "3", "En application de l article 1")
+    result = score_case(case, _outcome(view, case, [good, other]), view)
+    assert [v["verdict"] for v in result.verdicts] == ["match", "unscored"]
+    assert result.correct  # an unannotated extra relationship is listed, not credited or penalised
+    wrong_doc = EvalCase(**POSITIVE)
+    to_self_doc = _p(view, "new", "2", "repeals", "document", view.doc_id("old"), "new", "2",
+                     "abroge la circulaire n 2018-16")
+    assert score_case(wrong_doc, _outcome(view, wrong_doc, [to_self_doc]), view).correct
+
+
+def test_real_corpus_gold_and_sufficient_spans_resolve(real_view) -> None:
+    from app.services.evaluation import resolve_sufficient_spans
+
+    for case in [c for c in load_cases().cases if c.polarity == "positive"]:
+        spans = resolve_sufficient_spans(case, real_view)
+        assert spans and all(s.quote for s in spans)

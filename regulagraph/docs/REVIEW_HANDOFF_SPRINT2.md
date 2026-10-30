@@ -2,6 +2,17 @@
 
 Branch: `feat/sprint-2-investigation`. Review target: the PR head. Do not merge before PM sign-off.
 
+## Remediation after the review of `0b3f0a2`
+
+| Finding | Fix | Verify with |
+|---|---|---|
+| **P1: evaluation false positives.** One correct relationship hid an incorrect one | Scorer v2 (`SCORING_VERSION = 2`, `score_case`). Every published relationship gets a verdict (`match`, `type_error`, `direction_error`, `target_error`, `citation_insufficient`, `unscored`). A case is correct only if it has ≥1 `match` and no error verdict. Several acceptable types (repeals + supersedes) may each be a `match` | `pytest tests/test_evaluation.py -k "same_endpoints or multiple_acceptable or reversed_one or confusable"` |
+| **P1: insufficient citation fragments.** Any 1-character overlap passed | A cited evidence span must **contain** the annotated supporting span (`evidence_quote`) or an annotated `sufficient_quotes` alternative (same document and page). This is a location check, not semantic support | `pytest tests/test_evaluation.py -k "fragment or sufficient"` (includes `"ab"`) |
+| **P1: credential redaction** | `app/core/redaction.py`. The configured key and `Bearer <token>` are redacted at the provider error boundary (`meta_client._provider_error`), in every `ModelCallRecord` and parsed item (`investigator._call_model`), in log records (`install_log_redaction`: app and scripts), and in every file the scripts write | `pytest tests/test_redaction.py`. A MockTransport provider echoes a dummy key in its error message, type and header. The tests check the exception, `to_dict`, `InvestigationOutcome` JSON, logs, `_write` output and the full `run_live` path |
+| **P2: evaluation consistency** | Live files keep the run's own `score` unchanged (historical). `rescored` is replaced with the scorer v2 result (`scoring_version: 2`). `eval/results/current_scoring_summary.json` is the single current summary. `eval/README.md` separates the raw call facts (A), current v2 metrics (B) and superseded historical scores (C), and documents the E13 re-run and the E10 truncation | `python scripts/run_eval.py rescore eval/results/live_*.json`, then `git diff`: only `rescored`, `rescore_note` and the summary may change. `tests/test_evaluation.py::test_rescore_of_recorded_live_results` asserts that `score` is untouched |
+
+No live calls were made for this remediation. Credentials were not changed. All relationships remain `candidate`. Arbitrary PDF upload remains unavailable: the corpus is the curated manifest only.
+
 ## Claims to check
 
 | # | Claim | Where to check |
@@ -45,12 +56,21 @@ There were 7 requests to `muse-spark-1.3`, all HTTP 200, costing about $0.065 at
 
 Not run live: E02, E03, E04, E06, E07, E08, E09, E11.
 
-## Reproduce
+## Reproduce and verify (no paid calls)
 
 ```bash
 cd regulagraph && pip install -e ".[dev]"
-python scripts/fetch_corpus.py           # PDFs + SHA-256 check
-pytest                                    # offline; live test skipped unless RUN_LIVE_META=1
-python scripts/run_eval.py structural     # validator probes + retrieval recall (no model)
-python scripts/run_eval.py rescore eval/results/live_*.json   # re-score recorded live output (no model)
+python scripts/fetch_corpus.py              # 5 PDFs + SHA-256 check (needed for real-corpus tests)
+pytest                                       # expect 308 passed, 1 skipped (live test, opt-in)
+pytest tests/test_redaction.py tests/test_evaluation.py -v
+python scripts/run_eval.py structural        # 46 probes: 7 accept, 24 reject, 15 undetectable; recall 7/7, 5/5
+python scripts/run_eval.py rescore eval/results/live_*.json
+git diff --stat                              # rescoring must reproduce the committed files: no diff expected
+grep -rl "dummy-secret-key" eval/ || echo "no dummy key in results"
+```
+
+To confirm no real credential is committed (the tests contain only dummy tokens), compare against the key in a local `.env` without printing it:
+
+```bash
+python -c "from dotenv import dotenv_values; import subprocess; k=dotenv_values('.env').get('MODEL_API_KEY') or ''; print('key in history:', bool(k) and k in subprocess.run(['git','log','-p','--all'],capture_output=True,text=True,errors='ignore').stdout)"
 ```

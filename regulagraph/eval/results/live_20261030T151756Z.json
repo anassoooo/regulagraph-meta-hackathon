@@ -381,9 +381,22 @@
         "errors": [],
         "citation_ok": true,
         "coverage_complete": true,
-        "validated": true
+        "validated": true,
+        "verdicts": [
+          {
+            "relationship_id": "rel_480c4f8b4ca83254f451017b3761dd30",
+            "relation_type": "repeals",
+            "verdict": "match"
+          },
+          {
+            "relationship_id": "rel_39a6088f2e3d234a659ecafd55c19cc3",
+            "relation_type": "supersedes",
+            "verdict": "match"
+          }
+        ],
+        "scoring_version": 2
       }
     }
   ],
-  "rescore_note": "'rescored' re-applies the current scoring (app/services/evaluation.py) to the recorded model output; 'score' is what the run itself recorded."
+  "rescore_note": "'score' is what the run recorded (historical, scorer at run time). 'rescored' is the current scorer, version 2 (app/services/evaluation.py)."
 }

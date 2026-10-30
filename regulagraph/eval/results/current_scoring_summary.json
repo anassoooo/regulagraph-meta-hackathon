@@ -1,0 +1,183 @@
+{
+  "scoring_version": 2,
+  "note": "Current scorer only. Historical per-run scores stay in each file's 'score' field.",
+  "calls": [
+    {
+      "file": "live_20261030T151756Z.json",
+      "case_id": "E01",
+      "model_outcome": "ok",
+      "finish_reason": "stop",
+      "retrieved_source": true,
+      "retrieved_target": true,
+      "verdicts": [
+        "match",
+        "match"
+      ],
+      "citation_ok": true,
+      "correct": true,
+      "validated": true,
+      "errors": [],
+      "prompt_tokens": 3260,
+      "completion_tokens": 1922,
+      "reasoning_tokens": 1374,
+      "latency_ms": 8934.9,
+      "historical_score": {
+        "correct": true,
+        "validated": null
+      }
+    },
+    {
+      "file": "live_20261030T151822Z.json",
+      "case_id": "E13",
+      "model_outcome": "ok",
+      "finish_reason": "stop",
+      "retrieved_source": true,
+      "retrieved_target": false,
+      "verdicts": [],
+      "citation_ok": null,
+      "correct": true,
+      "validated": false,
+      "errors": [],
+      "prompt_tokens": 3307,
+      "completion_tokens": 1467,
+      "reasoning_tokens": 1453,
+      "latency_ms": 7854.0,
+      "historical_score": {
+        "correct": true,
+        "validated": null
+      }
+    },
+    {
+      "file": "live_20261030T153246Z.json",
+      "case_id": "E13",
+      "model_outcome": "ok",
+      "finish_reason": "stop",
+      "retrieved_source": true,
+      "retrieved_target": true,
+      "verdicts": [
+        "unscored"
+      ],
+      "citation_ok": null,
+      "correct": true,
+      "validated": true,
+      "errors": [],
+      "prompt_tokens": 3298,
+      "completion_tokens": 1359,
+      "reasoning_tokens": 1129,
+      "latency_ms": 6327.4,
+      "historical_score": {
+        "correct": true,
+        "validated": true
+      }
+    },
+    {
+      "file": "live_20261030T153322Z.json",
+      "case_id": "E12",
+      "model_outcome": "ok",
+      "finish_reason": "stop",
+      "retrieved_source": true,
+      "retrieved_target": true,
+      "verdicts": [
+        "match"
+      ],
+      "citation_ok": true,
+      "correct": true,
+      "validated": true,
+      "errors": [],
+      "prompt_tokens": 3261,
+      "completion_tokens": 1170,
+      "reasoning_tokens": 983,
+      "latency_ms": 6893.3,
+      "historical_score": {
+        "correct": true,
+        "validated": true
+      }
+    },
+    {
+      "file": "live_20261030T153355Z.json",
+      "case_id": "E05",
+      "model_outcome": "ok",
+      "finish_reason": "stop",
+      "retrieved_source": true,
+      "retrieved_target": true,
+      "verdicts": [
+        "match"
+      ],
+      "citation_ok": true,
+      "correct": true,
+      "validated": true,
+      "errors": [],
+      "prompt_tokens": 3834,
+      "completion_tokens": 936,
+      "reasoning_tokens": 762,
+      "latency_ms": 8018.5,
+      "historical_score": {
+        "correct": true,
+        "validated": true
+      }
+    },
+    {
+      "file": "live_20261030T153423Z.json",
+      "case_id": "E10",
+      "model_outcome": "truncated",
+      "finish_reason": "length",
+      "retrieved_source": true,
+      "retrieved_target": true,
+      "verdicts": [],
+      "citation_ok": null,
+      "correct": false,
+      "validated": false,
+      "errors": [
+        "model_outcome:truncated"
+      ],
+      "prompt_tokens": 4511,
+      "completion_tokens": 2048,
+      "reasoning_tokens": 2046,
+      "latency_ms": 9594.7,
+      "historical_score": {
+        "correct": true,
+        "validated": true
+      }
+    }
+  ],
+  "distinct_cases": [
+    "E01",
+    "E05",
+    "E10",
+    "E12",
+    "E13"
+  ],
+  "latest_run_per_case": {
+    "E01": {
+      "file": "live_20261030T151756Z.json",
+      "correct": true,
+      "validated": true
+    },
+    "E13": {
+      "file": "live_20261030T153246Z.json",
+      "correct": true,
+      "validated": true
+    },
+    "E12": {
+      "file": "live_20261030T153322Z.json",
+      "correct": true,
+      "validated": true
+    },
+    "E05": {
+      "file": "live_20261030T153355Z.json",
+      "correct": true,
+      "validated": true
+    },
+    "E10": {
+      "file": "live_20261030T153423Z.json",
+      "correct": false,
+      "validated": false
+    }
+  },
+  "validated_cases_latest_run": [
+    "E01",
+    "E05",
+    "E12",
+    "E13"
+  ]
+}

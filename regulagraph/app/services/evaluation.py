@@ -54,7 +54,11 @@ class Expected(BaseModel):
     source: ProvisionSpec
     target: TargetSpec
     acceptable_types: list[RelationType] = Field(min_length=1)
-    evidence_quote: str = Field(min_length=1)
+    evidence_quote: str = Field(min_length=1, description="Annotated supporting span in the source provision.")
+    sufficient_quotes: list[str] = Field(
+        default_factory=list,
+        description="Explicitly annotated shorter spans that are also sufficient support (each inside the source).",
+    )
 
 
 class Forbidden(BaseModel):
@@ -147,7 +151,60 @@ def resolve_expected(case: EvalCase, view: CorpusView) -> tuple[Provision, str, 
     return source, target_id, gold
 
 
+def resolve_sufficient_spans(case: EvalCase, view: CorpusView) -> list[Evidence]:
+    """The annotated supporting span plus every annotated sufficient alternative, located in the source."""
+    exp = case.expected
+    assert exp is not None
+    source, _, gold = resolve_expected(case, view)
+    spans = [gold]
+    for quote in exp.sufficient_quotes:
+        ev = locate_in_provision(source, quote, view.docs[exp.source.doc])
+        if ev is None:
+            raise LookupError(f"{case.id}: sufficient quote not found in the source provision: {quote!r}")
+        spans.append(ev)
+    return spans
+
+
 # --- scoring a real outcome -----------------------------------------------------
+
+SCORING_VERSION = 2
+"""Scoring rules, version 2 (adopted after the independent review of 0b3f0a2).
+
+Positive cases. Every published relationship gets one verdict:
+
+* ``match``: gold source -> gold target, type in ``acceptable_types``, and a cited
+  evidence span *contains* the annotated supporting span or an annotated
+  sufficient alternative (same document and page).
+* ``citation_insufficient``: gold endpoints and acceptable type, but no cited span
+  contains a sufficient span (a fragment such as "ab" is never enough).
+* ``type_error``: gold endpoints, type not acceptable.
+* ``direction_error``: gold target -> gold source.
+* ``target_error``: gold source -> a target confusable with the gold one (a
+  provision with the same article number, e.g. an annex's own Article 2, or a
+  different document when the gold target is a document).
+* ``unscored``: anything else. Not annotated, so neither credited nor penalised,
+  but always listed.
+
+A positive case is correct iff there is at least one ``match`` and no
+``citation_insufficient``, ``type_error``, ``direction_error`` or ``target_error``.
+Several matches are fine: when more than one type is acceptable (e.g. repeals
+and supersedes for "abroge et remplace"), each may be published. One correct
+relationship does not excuse an incorrect one between the same endpoints.
+
+Negative cases are correct iff no forbidden relationship is published.
+
+Both: no usable model answer (truncated, refused, ...) is never correct, and a
+case is ``validated`` only if it is correct and every required provision was in
+the prompt. Citation checks are about *location* (the quote sits where the
+annotation says the support is); they say nothing about semantic support.
+"""
+
+_SCORED_ERRORS = ("citation_insufficient", "type_error", "direction_error", "target_error")
+
+
+def _contains(outer: Evidence, inner: Evidence) -> bool:
+    return (outer.document_id == inner.document_id and outer.page_number == inner.page_number
+            and outer.char_start <= inner.char_start and inner.char_end <= outer.char_end)
 
 class CaseResult(BaseModel):
     case_id: str
@@ -163,7 +220,9 @@ class CaseResult(BaseModel):
     errors: list[str]
     citation_ok: bool | None = None
     coverage_complete: bool = True
-    validated: bool = False  # correct AND every required provision was in the prompt
+    validated: bool = False  # correct AND every required provision was in the prompt AND a usable answer
+    verdicts: list[dict[str, Any]] = Field(default_factory=list)  # one per published relationship
+    scoring_version: int = SCORING_VERSION
 
 
 def _summaries(report: InvestigationReport, view: CorpusView) -> list[dict[str, Any]]:
@@ -184,46 +243,49 @@ def _summaries(report: InvestigationReport, view: CorpusView) -> list[dict[str, 
     return out
 
 
-def _overlaps(a: Evidence, b: Evidence) -> bool:
-    return (a.document_id == b.document_id and a.page_number == b.page_number
-            and a.char_start < b.char_end and b.char_start < a.char_end)
-
-
 def score_case(case: EvalCase, outcome: InvestigationOutcome, view: CorpusView) -> CaseResult:
     report = outcome.finalized.report()
     provs = {p.provision_id: p for p in report.provisions}
     evidence = {e.evidence_id: e for e in report.evidence}
     errors: list[str] = []
+    verdicts: list[dict[str, Any]] = []
     citation_ok: bool | None = None
     retrieved_source = retrieved_target = None
     correct = False
 
     if case.polarity == "positive":
-        source, target_id, gold = resolve_expected(case, view)
+        source, target_id, _ = resolve_expected(case, view)
+        sufficient = resolve_sufficient_spans(case, view)
         exp = case.expected
         assert exp is not None
         retrieved_source = source.provision_id in outcome.retrieved_provision_ids
         retrieved_target = exp.target.kind == "document" or target_id in outcome.retrieved_provision_ids
-        matched = False
+        gold_target = provs.get(target_id) or next(
+            (p for ps in view.provisions.values() for p in ps if p.provision_id == target_id), None)
         for r in report.relationships:
-            same_source = r.source_provision_id == source.provision_id
-            if same_source and r.target_id == target_id:
-                matched = True
-                if r.relation_type in exp.acceptable_types:
-                    correct = True
-                    citation_ok = any(_overlaps(evidence[e], gold) for e in r.evidence_ids)
-                    if not citation_ok:
-                        errors.append("citation_miss")
+            if r.source_provision_id == source.provision_id and r.target_id == target_id:
+                if r.relation_type not in exp.acceptable_types:
+                    verdict = "type_error"
+                elif any(_contains(evidence[e], g) for e in r.evidence_ids for g in sufficient):
+                    verdict = "match"
                 else:
-                    errors.append(f"type_error:{r.relation_type.value}")
+                    verdict = "citation_insufficient"
             elif r.source_provision_id == target_id and r.target_id == source.provision_id:
-                errors.append("direction_error")
-            elif same_source and r.relation_type in exp.acceptable_types:
-                errors.append("target_error")
-        if not matched and not errors:
+                verdict = "direction_error"
+            elif r.source_provision_id == source.provision_id and _confusable_target(r, exp, gold_target, provs):
+                verdict = "target_error"
+            else:
+                verdict = "unscored"
+            verdicts.append({"relationship_id": r.relationship_id, "relation_type": r.relation_type.value,
+                             "verdict": verdict})
+        matches = [v for v in verdicts if v["verdict"] == "match"]
+        errors = [f"{v['verdict']}:{v['relation_type']}" for v in verdicts if v["verdict"] in _SCORED_ERRORS]
+        # citation_ok: every gold-endpoint, acceptable-type relationship cites a sufficient span (None if none).
+        cited = [v["verdict"] for v in verdicts if v["verdict"] in {"match", "citation_insufficient"}]
+        citation_ok = all(v == "match" for v in cited) if cited else None
+        if not matches and not errors:
             errors.append("missing")
-        if correct and citation_ok is False:
-            correct = False
+        correct = bool(matches) and not any(v["verdict"] in _SCORED_ERRORS for v in verdicts)
     else:
         shown = set(outcome.retrieved_provision_ids)
         sources_needed = [
@@ -240,12 +302,17 @@ def score_case(case: EvalCase, outcome: InvestigationOutcome, view: CorpusView) 
             src = provs[r.source_provision_id]
             tgt = provs.get(r.target_provision_id) if r.target_provision_id else None
             tgt_doc = tgt.document_id if tgt else r.target_document_id
-            for f in case.forbidden:
-                if (view.key_of.get(src.document_id) == f.source_doc and view.key_of.get(tgt_doc or "") == f.target_doc
-                        and (f.source_number is None or src.number == f.source_number)
-                        and (f.target_number is None or (tgt is not None and tgt.number == f.target_number))
-                        and (f.types is None or r.relation_type in f.types)):
-                    errors.append(f"forbidden_published:{r.relation_type.value}")
+            forbidden = any(
+                view.key_of.get(src.document_id) == f.source_doc and view.key_of.get(tgt_doc or "") == f.target_doc
+                and (f.source_number is None or src.number == f.source_number)
+                and (f.target_number is None or (tgt is not None and tgt.number == f.target_number))
+                and (f.types is None or r.relation_type in f.types)
+                for f in case.forbidden
+            )
+            if forbidden:
+                errors.append(f"forbidden_published:{r.relation_type.value}")
+            verdicts.append({"relationship_id": r.relationship_id, "relation_type": r.relation_type.value,
+                             "verdict": "forbidden" if forbidden else "unscored"})
         correct = not errors
     if outcome.model_call.outcome != "ok":
         # No usable answer (truncated, refused, malformed, ...) is never a correct result, not even for a
@@ -260,7 +327,17 @@ def score_case(case: EvalCase, outcome: InvestigationOutcome, view: CorpusView) 
         rejected=len(outcome.rejected), correct=correct, errors=errors, citation_ok=citation_ok,
         coverage_complete=retrieved_source is not False and retrieved_target is not False,
         validated=correct and retrieved_source is not False and retrieved_target is not False,
+        verdicts=verdicts,
     )
+
+
+def _confusable_target(r: Any, exp: Expected, gold_target: Provision | None,
+                       provs: Mapping[str, Provision]) -> bool:
+    if exp.target.kind == "document":
+        return r.target_document_id is not None  # another document instead of the gold one
+    other = provs.get(r.target_provision_id) if r.target_provision_id else None
+    return (other is not None and gold_target is not None and other.kind == gold_target.kind
+            and other.number == gold_target.number)
 
 
 def required_provisions(case: EvalCase, view: CorpusView) -> dict[str, str]:

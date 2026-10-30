@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from app.core.config import Settings
 from app.core.errors import InferenceDisabledError, InvalidModelRequestError, ModelProviderError
+from app.core.redaction import configured_secrets, redact
 
 logger = logging.getLogger(__name__)
 
@@ -172,7 +173,7 @@ class MetaModelAdapter:
         latency_ms = round((time.perf_counter() - started) * 1000, 1)
 
         if response.status_code != 200:
-            raise _provider_error(response)
+            raise _provider_error(response, configured_secrets(s))
 
         try:
             wire = _WireResponse.model_validate(response.json())
@@ -193,7 +194,8 @@ class MetaModelAdapter:
         )
 
 
-def _provider_error(response: httpx.Response) -> ModelProviderError:
+def _provider_error(response: httpx.Response, secrets: list[str]) -> ModelProviderError:
+    """Build the error from the provider body, redacting any echoed credential before it leaves here."""
     message, error_type = "Meta API request failed", None
     try:
         err = response.json().get("error") or {}
@@ -202,9 +204,9 @@ def _provider_error(response: httpx.Response) -> ModelProviderError:
     except (ValueError, AttributeError):
         pass  # e.g. empty body on unknown path (404)
     return ModelProviderError(
-        message,
+        redact(message, secrets),
         status_code=response.status_code,
-        error_type=error_type,
+        error_type=redact(str(error_type), secrets) if error_type is not None else None,
         retryable=response.status_code in _RETRYABLE_STATUS,
     )
 

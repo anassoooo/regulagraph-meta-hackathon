@@ -27,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.config import Settings  # noqa: E402
 from app.core.errors import RegulaGraphError  # noqa: E402
+from app.core.redaction import configured_secrets, install_log_redaction, redact_obj  # noqa: E402
 from app.services.meta_client import ChatMessage, MetaModelAdapter  # noqa: E402
 
 RESULTS = Path(__file__).resolve().parents[1] / "eval" / "results"
@@ -52,6 +53,7 @@ def main() -> int:
     args = parser.parse_args()
 
     settings = Settings()
+    install_log_redaction(settings)
     if not args.confirm_paid_call:
         print("refusing: pass --confirm-paid-call after checking your Meta credit balance", file=sys.stderr)
         return 2
@@ -97,6 +99,7 @@ def main() -> int:
             rate_limit_remaining=result.rate_limit_remaining,
             text=(result.text or "")[:200],
         )
+    record = redact_obj(record, configured_secrets(settings))
     RESULTS.mkdir(parents=True, exist_ok=True)
     out = RESULTS / f"smoke_{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}.json"
     out.write_text(json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8")
