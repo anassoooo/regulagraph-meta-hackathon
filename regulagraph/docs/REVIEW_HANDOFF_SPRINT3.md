@@ -15,6 +15,56 @@ Branch: `feat/sprint-3-demo`, based on `main` at `7c464ba`. Do not merge before 
 
 No paid Meta calls were made in Sprint 3.
 
+## Remediation of the second review of `4dabc15` (REQUEST CHANGES)
+
+The selection race (P1-2 below) was closed by the second review. The frontend is unchanged in this commit; only `app/services/replay.py` and `tests/test_recording_integrity.py` changed.
+
+| Finding | Defect | Fix | Regression evidence |
+|---|---|---|---|
+| **P1** Model-call metadata consistency | Sol changed E12's recorded `model_call` while keeping the stored report and summary. `http_status=500`, `finish_reason="not_a_real_finish_reason"`, `usage.prompt_tokens` 3261 → 3361, and `latency_ms=1` each returned HTTP 200 with `validated=true`, and `demo.py --check` passed. | `_check_model_call` in `app/services/replay.py`. **Provider contract** (`meta_client.py`): `http_status` must be 200, the only status the client accepts. `finish_reason` must be one of the documented reasons (`stop`, `length`, `tool_calls`, `content_filter`, `function_call`), and must be `stop`, the only complete answer. `refusal` and `error` must be null, `response_id` non-empty, and `latency_ms` a positive number. Usage is strictly typed: `total = prompt + completion`, `reasoning ≤ completion`, `completion ≤ max_completion_tokens`. **Cross-checks against recorded copies** (no invented values): the scoring-summary entry's `model_outcome`, `finish_reason`, `prompt_tokens`, `completion_tokens`, `reasoning_tokens` and `latency_ms` must equal the model call. The run summary's `max_completion_tokens` and `reasoning_effort` must match, and its token totals must match when the file holds this call only. Any failure is a `DemoUnavailable` (503), and preflight fails on the same check. The fingerprint and fresh-evaluation checks are unchanged. | `tests/test_recording_integrity.py`. **Sol's four mutations × 4 scenarios** (`sol http_status 500`, `sol finish_reason invented`, `sol prompt_tokens +100`, `sol latency_ms 1`), through the API and `test_preflight_rejects_sol_model_call_mutations_for_every_scenario`. **Boundary cases × 4 scenarios:** finish_reason `length` / `content_filter` / missing / null; http_status 201 / missing / bool; response_id empty / missing; refusal or error present; latency missing / null / string / 0 / negative; max_completion_tokens missing; reasoning_effort changed; usage token as string / missing / negative / reasoning > completion / completion > max; consistent usage changes that contradict the summary; file-summary tokens changed or missing; file-summary max_completion_tokens changed. **Summary-side contradictions × 4 scenarios** (`test_summary_call_metadata_contradiction_fails_closed`): latency, each token count, finish_reason, model_outcome, missing latency, wrong-type tokens. |
+| **P2** Malformed latest-run summary | `latest_run_per_case = ["broken"]` gave HTTP 500 and an uncaught `AttributeError` in preflight. | `load_recording` requires `latest_run_per_case` to be a mapping, and the scenario's entry to be a mapping with a string `file` and boolean `correct` / `validated`, before use. Otherwise the result is a `DemoUnavailable` (503) naming the failed check, and preflight raises a `PreflightError` saying "restore eval/results/ from git". A missing entry for a scenario is a 503 "no recorded live run". | `test_malformed_latest_run_summary_fails_closed` covers a list, null, scalar, string, missing mapping, entry as list / null / string, entry without `file`, non-string `file`, non-boolean `validated`, and a non-object summary. Each case asserts a 503 from the replay, never a 500 from `/api/evaluation`, and a `PreflightError` from preflight. `test_missing_latest_entry_for_a_scenario_fails_closed`. |
+
+**Sol's probes, re-run on temporary copies of `eval/results/` and the summary.** Committed files were hashed before and after: unchanged. There were 0 network calls. The tables show both the API and preflight results, for the reviewed commit and this commit.
+
+`4dabc15` (reviewed):
+
+| Probe (E12) | API | Preflight |
+|---|---|---|
+| `http_status=500` | HTTP 200, validated=true | passed |
+| `finish_reason="not_a_real_finish_reason"` | HTTP 200, validated=true | passed |
+| `usage.prompt_tokens` 3261 → 3361 | HTTP 200, validated=true | passed |
+| `latency_ms=1` | HTTP 200, validated=true | passed |
+| `latest_run_per_case=["broken"]` | HTTP 500 | crash: `AttributeError` |
+
+This commit:
+
+| Probe (E12) | API | Preflight |
+|---|---|---|
+| `http_status=500` | HTTP 503: `model_call.http_status is not a successful provider response` | `PreflightError` |
+| `finish_reason="not_a_real_finish_reason"` | HTTP 503: `model_call.finish_reason is not a provider finish reason` | `PreflightError` |
+| `usage.prompt_tokens` 3261 → 3361 | HTTP 503: `model_call.usage inconsistent` (total no longer adds up) | `PreflightError` |
+| `latency_ms=1` | HTTP 503: `summary latency_ms contradicts model_call` | `PreflightError` |
+| `latest_run_per_case=["broken"]` | HTTP 503: `summary.latest_run_per_case has the wrong type` | `PreflightError` |
+
+A prompt-token change that keeps the total consistent is rejected by the summary cross-check (`summary prompt_tokens contradicts model_call`), as tested.
+
+**Results at this commit:**
+
+| Run | Result |
+|---|---|
+| pytest, Python 3.13.12, corpus present | **692 passed, 1 skipped** (the opt-in live Meta test) |
+| pytest, Python 3.11.15, corpus present | **692 passed, 1 skipped** |
+| pytest, Python 3.13.12, corpus PDFs removed | **599 passed, 94 skipped** |
+| `node --test tests/js/view.test.mjs tests/js/controller.test.mjs` | **17 / 17** (frontend unchanged) |
+| `python scripts/demo.py --check`, intact recordings | passes: E01, E12, E05 and E13 reproduce exactly and re-score as validated |
+
+The full suite includes the earlier regression coverage, still passing:
+
+- E01, E05, E12 and E13 replay;
+- candidate-only labelling;
+- redaction (`tests/test_redaction.py`, replay responses);
+- zero-call replay isolation (network transport and `MetaModelAdapter.complete` patched to fail).
+
 ## Remediation of the independent review of `8096cf1` (REQUEST CHANGES)
 
 Closure matrix:
@@ -106,7 +156,8 @@ The browser QA was automated rather than done by hand on a physical device. Fire
 - Graph labels on desktop render at about 9.5 px when the graph is scaled into its panel. They are legible but small.
 - Model quality is still measured only on 5 live cases (4 validated, E10 truncated). Semantic errors cannot be detected structurally (15 of 15 probes published).
 - The evaluation annotations have not been domain-reviewed.
-- Recording integrity proves that a replay matches what was recorded and scored. It cannot detect a recording that was forged consistently in all places: model output, fingerprint, report ID, stored score and summary. The recordings are protected by git history, not by signatures.
+- Recording integrity proves that a replay matches what was recorded and scored. It cannot detect a recording that was forged consistently in all places: model output, fingerprint, report ID, stored score, call metadata and summaries. The recordings are protected by git history, not by signatures.
+- Latency and token counts can only be cross-checked against the other recorded copies. There is no independent provider receipt to compare them with.
 - The `expected_relations` per scenario in `app/services/replay.py` are curated backend expectations (sorted relation types). They are not shown to the user, and the client still hardcodes no evidence.
 - The JS controller tests use a minimal fake DOM, not a real browser. The real-browser race check was a single automated run, not part of CI.
 

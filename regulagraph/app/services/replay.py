@@ -13,7 +13,10 @@ one, so the content digest is stable. No network request is made.
 
 Recording integrity (fail closed): before use, every field the replay relies on
 is checked for presence and type, and the recording must agree with the
-scenario (case ID, question, recorded model). After the replay, the finalized
+scenario (case ID, question, recorded model). The model call must be a
+successful completion under the provider contract (HTTP 200, finish_reason
+"stop", no refusal or error, coherent token usage), and its metadata must equal
+every other recorded copy (scoring summary, run summary). After the replay, the finalized
 report must reproduce the recording exactly (content digest, report ID, prompt
 provisions and size, model call) and publish the scenario's expected relation
 types. The evaluation returned with a replay is recomputed by the current
@@ -44,6 +47,12 @@ RECORDED_MODEL_ID = "muse-spark-1.3"  # every curated recording was made with th
 RESTORE_HINT = "restore eval/results/ from git (git checkout -- eval/results)"
 _RECORDING_FILE = re.compile(r"live_\d{8}T\d{6}Z\.json")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
+# Provider response contract (app/services/meta_client.py): the client only accepts HTTP 200, and
+# finish_reason is one of these. Only "stop" is a complete answer: "length" is truncated, "content_filter"
+# is filtered, and tool/function calls are never requested.
+PROVIDER_FINISH_REASONS = frozenset({"stop", "length", "tool_calls", "content_filter", "function_call"})
+SUCCESS_FINISH_REASON = "stop"
+SUCCESS_HTTP_STATUS = 200
 
 
 @dataclass(frozen=True)
@@ -140,15 +149,18 @@ def _get(obj: Any, key: str, typ: type | tuple[type, ...], fail: Any, where: str
 def load_recording(case: EvalCase) -> Recording:
     """The latest recorded live run of a case, as listed in the current scoring summary, fully validated."""
     summary = current_summary()
-    latest = (summary.get("latest_run_per_case") or {}).get(case.id)
-    if latest is None:
-        raise DemoUnavailable("no recorded live run for this scenario", details={"scenario_id": case.id})
-    file = latest.get("file") if isinstance(latest, dict) else None
+    file: Any = None
 
     def fail(check: str) -> DemoUnavailable:
         return _corrupt(file if isinstance(file, str) else "?", case.id, check)
 
-    if not isinstance(file, str) or not _RECORDING_FILE.fullmatch(file):
+    latest_runs = _get(summary, "latest_run_per_case", dict, fail, "summary")
+    if case.id not in latest_runs:
+        raise DemoUnavailable(f"no recorded live run for this scenario; {RESTORE_HINT}",
+                              details={"scenario_id": case.id})
+    latest = _get(latest_runs, case.id, dict, fail, "summary latest_run_per_case")
+    file = _get(latest, "file", str, fail, "summary latest")
+    if not _RECORDING_FILE.fullmatch(file):
         raise fail("summary file name")
     if summary.get("scoring_version") != SCORING_VERSION:
         raise fail("summary scoring_version")
@@ -195,16 +207,7 @@ def load_recording(case: EvalCase) -> Recording:
         json.loads(raw_text)
     except ValueError as exc:
         raise fail("model_call.raw_text is not valid JSON") from exc
-    _get(mc, "response_id", str, fail, "model_call")
-    _get(mc, "finish_reason", str, fail, "model_call")
-    _get(mc, "reasoning_effort", str, fail, "model_call")
-    _get(mc, "http_status", int, fail, "model_call")
-    _get(mc, "latency_ms", (int, float), fail, "model_call", nullable=True)
-    _get(mc, "refusal", str, fail, "model_call", nullable=True)
-    try:
-        TokenUsage.model_validate(_get(mc, "usage", dict, fail, "model_call"))
-    except ValueError as exc:
-        raise fail("model_call.usage malformed") from exc
+    _check_model_call(mc, record, data, summary_call, fail)
     for inference in _get(report, "inferences", list, fail, "report"):
         if _get(inference, "model_id", str, fail, "report inference") != model_id:
             raise fail("report inference model identity")
@@ -238,6 +241,66 @@ def load_recording(case: EvalCase) -> Recording:
         shown_provision_ids=shown, prompt_chars=prompt_chars, content_digest=digest, report_id=report_id,
         stored_score=stored, summary_call=summary_call,
     )
+
+
+def _check_model_call(mc: dict[str, Any], record: dict[str, Any], data: dict[str, Any],
+                      summary_call: dict[str, Any], fail: Any) -> None:
+    """The recorded call must be a successful completion under the provider contract, and every copy of its
+    metadata (scoring summary, run summary) must agree with it exactly. No expected values are invented:
+    the recorded model_call is compared against the other recorded copies."""
+    if not _get(mc, "response_id", str, fail, "model_call").strip():
+        raise fail("model_call.response_id empty")
+    if _get(mc, "http_status", int, fail, "model_call") != SUCCESS_HTTP_STATUS:
+        raise fail("model_call.http_status is not a successful provider response")
+    finish_reason = _get(mc, "finish_reason", str, fail, "model_call")
+    if finish_reason not in PROVIDER_FINISH_REASONS:
+        raise fail("model_call.finish_reason is not a provider finish reason")
+    if finish_reason != SUCCESS_FINISH_REASON:
+        raise fail("model_call.finish_reason is not a complete answer")
+    if _get(mc, "refusal", str, fail, "model_call", nullable=True) is not None:
+        raise fail("model_call.refusal present")
+    if _get(mc, "error", dict, fail, "model_call", nullable=True) is not None:
+        raise fail("model_call.error present")
+    latency = _get(mc, "latency_ms", (int, float), fail, "model_call")
+    if not latency > 0 or latency == float("inf"):
+        raise fail("model_call.latency_ms invalid")
+    effort = _get(mc, "reasoning_effort", str, fail, "model_call")
+    max_tokens = _get(mc, "max_completion_tokens", int, fail, "model_call")
+    try:
+        usage = TokenUsage.model_validate(_get(mc, "usage", dict, fail, "model_call"), strict=True)
+    except ValueError as exc:
+        raise fail("model_call.usage malformed") from exc
+    if (min(usage.prompt_tokens, usage.completion_tokens, usage.reasoning_tokens) < 0
+            or usage.total_tokens != usage.prompt_tokens + usage.completion_tokens
+            or usage.reasoning_tokens > usage.completion_tokens
+            or usage.completion_tokens > max_tokens):
+        raise fail("model_call.usage inconsistent")
+
+    # Scoring summary entry for this call: an exact copy of the call metadata.
+    copies = {
+        "model_outcome": mc["outcome"], "finish_reason": finish_reason, "prompt_tokens": usage.prompt_tokens,
+        "completion_tokens": usage.completion_tokens, "reasoning_tokens": usage.reasoning_tokens,
+        "latency_ms": latency,
+    }
+    for key, value in copies.items():
+        if key not in summary_call or type(summary_call[key]) is bool or summary_call[key] != value:
+            raise fail(f"summary {key} contradicts model_call")
+
+    # Run summary of the recording file: settings always; token totals when the file holds this call only.
+    run = _get(data, "summary", dict, fail, "file")
+    if _get(run, "max_completion_tokens", int, fail, "file summary") != max_tokens:
+        raise fail("file summary max_completion_tokens contradicts model_call")
+    if _get(run, "reasoning_effort", str, fail, "file summary") != effort:
+        raise fail("file summary reasoning_effort contradicts model_call")
+    calls_in_file = [r for r in data["results"] if isinstance(r, dict) and r.get("api_called", True) is True]
+    if calls_in_file == [record]:
+        tokens = _get(run, "tokens", dict, fail, "file summary")
+        expected = {"prompt_tokens": usage.prompt_tokens, "completion_tokens": usage.completion_tokens,
+                    "total_tokens": usage.total_tokens, "reasoning_tokens": usage.reasoning_tokens}
+        required = ("prompt_tokens", "completion_tokens", "total_tokens")  # reasoning_tokens: later format only
+        if any(k not in tokens for k in required) or any(
+                k in tokens and (type(tokens[k]) is not int or tokens[k] != v) for k, v in expected.items()):
+            raise fail("file summary tokens contradict model_call")
 
 
 _view_lock = threading.Lock()
