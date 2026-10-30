@@ -2,7 +2,7 @@
 
 RegulaGraph is an AI agent that investigates the impact of public Central Bank of Tunisia (BCT) regulations. It traces how changes affect related provisions and produces impact reports in which every claim cites a source passage.
 
-**Status: Sprint 2 (first end-to-end investigation).** The working pipeline:
+**Status: Sprint 3 (local, replay-only demo).** A web demo shows recorded Muse investigations, with relationships drawn as a graph and exact source evidence. See [Web demo](#web-demo-sprint-3-replay-only). The pipeline from Sprint 2 underneath:
 
 1. real BCT circulars, hash-verified;
 2. provision spans with exact offsets;
@@ -10,7 +10,7 @@ RegulaGraph is an AI agent that investigates the impact of public Central Bank o
 4. finalization;
 5. a manually written evaluation set.
 
-Every relationship is published as **`candidate`**: nothing is ever confirmed. **Live Muse calls so far:** 7 requests, about $0.065 in total, all HTTP 200: a smoke test plus 5 distinct cases (E01, E05, E10, E12, E13; E13 was run twice). Under the current scorer (v2), 4 cases are validated and 1 (E10) was truncated. Historical per-run scores are kept separately and superseded. They are recorded in `eval/results/` and summarised in [eval/README.md](eval/README.md). Graph storage and a frontend are out of scope.
+Every relationship is published as **`candidate`**: nothing is ever confirmed. **Live Muse calls so far:** 7 requests, about $0.065 in total, all HTTP 200: a smoke test plus 5 distinct cases (E01, E05, E10, E12, E13; E13 was run twice). Under the current scorer (v2), 4 cases are validated and 1 (E10) was truncated. Historical per-run scores are kept separately and superseded. They are recorded in `eval/results/` and summarised in [eval/README.md](eval/README.md). There is no graph database and no deployment.
 
 ## Layout
 
@@ -30,11 +30,15 @@ app/
   services/meta_client.py      ModelAdapter protocol, Meta Model API adapter, ReplayAdapter
   services/investigator.py     retrieval -> Muse proposal -> validation -> finalized report
   services/evaluation.py       evaluation cases, scoring, structural probes
+  services/replay.py           deterministic replay of recorded Muse output through the real pipeline
+  api/investigations.py        replay-only demo API (/api/scenarios, /api/scenarios/{id}/replay, /api/evaluation)
+  web/                         static client: index.html, app.js (DOM), view.js (pure logic), style.css
 data/manifest.json             corpus: URLs, dates, SHA-256, extraction notes (PDFs not committed)
 eval/cases.json                13 manually written cases (positive and negative)
 eval/results/                  recorded evaluation runs
-scripts/                       fetch_corpus, smoke_test, investigate, run_eval
-docs/                          EXTRACTION_QUALITY.md, SPRINT2_REQUIREMENTS.md
+scripts/                       fetch_corpus, demo, smoke_test, investigate, run_eval
+tests/js/                      node --test unit tests for the client view logic, journey helper
+docs/                          EXTRACTION_QUALITY.md, SPRINT2_REQUIREMENTS.md, REVIEW_HANDOFF_SPRINT2/3.md
 ```
 
 ## Setup
@@ -60,6 +64,52 @@ pytest
 - **Real-corpus tests** (`test_real_corpus.py`, the gold-quote and structural-probe tests in `test_evaluation.py`) run only when the PDFs have been fetched. Otherwise they are skipped.
 - **Live Meta test** (`tests/test_live_meta.py`) is skipped unless `RUN_LIVE_META=1`.
 - **Mocked API.** Elsewhere the Meta API is mocked with `httpx.MockTransport` (`tests/test_investigator.py::test_end_to_end_with_mocked_meta_http_api`).
+- **Web client.** `node --test tests/js/view.test.mjs tests/js/controller.test.mjs` runs the client tests: the view logic, and the real `app.js` controller against a minimal fake DOM with controlled response ordering (latest scenario selection wins). `pytest` also runs them, plus the E01 journey test, when Node is installed.
+
+## Web demo (Sprint 3, replay only)
+
+```bash
+python scripts/fetch_corpus.py   # in advance: downloads the BCT PDFs, verifies SHA-256 (git-ignored)
+python scripts/demo.py           # preflight, then http://127.0.0.1:8000   (--check: preflight only)
+```
+
+**Preflight** (`scripts/demo.py`) refuses to start, with an actionable message, if:
+
+- a corpus PDF is missing or fails its SHA-256 check;
+- a scenario's recording is missing, malformed, or inconsistent with the scenario (case ID, question, recorded model, prompt provisions, report metadata);
+- any scenario's replay does not reproduce its recording exactly (content digest, report ID, prompt), does not publish the expected candidate relation types, or the current scorer run on the replay disagrees with the stored evaluation;
+- the port is taken.
+
+It also starts the server with `META_INFERENCE_ENABLED=false`.
+
+**Demo script (about 2 minutes):**
+
+1. Note the permanent **REPLAY MODE** banner. No model is called, and there is no live endpoint.
+2. Click **E01 · primary**. The question is "Quelle circulaire la circulaire n°2026-10 abroge-t-elle ou remplace-t-elle ?". The graph shows **Article 52 (2026-10)** with two dashed AI-candidate edges, **repeals** and **supersedes**, pointing to **circular 2018-16 (whole circular)**.
+3. Click either edge (or Tab to it and press Enter). The evidence panel shows:
+   - the badges *AI-generated · Candidate · Unconfirmed*;
+   - the **verified source text**: the exact quotation at page 33, characters 1158–1428, with a link to the official BCT PDF at that page;
+   - the model's **interpretation**, labelled *not verified*.
+4. Optionally run E12 (implements 47 → 8), E05 ("sans préjudice", a reference) and E13 ("ne sont pas applicables", a reference only).
+5. Open **Evaluation**: scorer v2 results, with **E10 shown as truncated (no answer)**, cases not run live marked as such, and the 15 semantic errors that structural checks cannot detect.
+
+**Replay provenance.** A replay is not a stored screenshot of a result. `app/services/replay.py` takes the raw Muse output recorded during an authorised live run (`eval/results/live_*.json`, listed in `current_scoring_summary.json`). It feeds that output, via `ReplayAdapter`, back through the real pipeline (`investigate` → `finalize_report`), with the same prompt provisions and the recorded timestamp. Every quotation is re-located in the hash-verified PDF text on each replay, and every scenario must reproduce its recorded run's content digest exactly. The evaluation returned with a replay is recomputed by the current scorer from that replay; stored labels are used only as a cross-check and never shown on their own. If the PDFs, the recordings, the provision IDs or any recording metadata no longer match, the API returns 503 and shows nothing.
+
+**What the screen does and does not claim.**
+
+- *Verified source text* means the quotation exists at those offsets inside the cited provision. It does not mean the relationship is legally correct.
+- Every relationship is an AI-generated **candidate** and **unconfirmed**. No control can confirm one.
+- *Validated* in the evaluation view means the recorded answer matched the author's annotation. Neither the annotations nor the relationships have been reviewed by a domain expert.
+
+**Content shown (PM decision D3).** Exact evidence quotations, provision labels, page numbers, character offsets and official BCT PDF links only. The API never returns full article text, and no PDFs or extracted text are committed.
+
+**Security.**
+
+- **Scenarios:** curated only, with no free text and no uploads.
+- **Rendering:** untrusted text is inserted with `textContent` only.
+- **Headers:** a strict CSP (`default-src 'none'; script-src 'self'; style-src 'self'; …`) with no inline code and no CDN, plus `nosniff`, `no-referrer`, frame denial and `no-store`.
+- **Redaction:** responses are scrubbed of credentials.
+- **No API docs:** the FastAPI docs and OpenAPI routes are disabled.
 
 ## Demo (reproducible, no paid call)
 
@@ -189,6 +239,8 @@ Gold quotes are checked automatically against the extracted text. The cases were
 > **Scope of verification.** The checks prove that a cited passage exists at the stated location, lies inside the provision it is attributed to, and (when recorded) names the target. They do **not** prove that the passage means what the relationship says. "Sans préjudice de l'article 14" and "abroge l'article 14" pass the same structural checks. Semantic entailment is not implemented, and neither a lexical match nor anything the model says is treated as proof. `tests/test_relationships.py::test_lexical_match_is_not_semantic_support` and the structural probes keep this limit visible.
 
 ## Known limitations
+
+- **Demo is replay-only and local.** It shows four recorded investigations. It cannot answer new questions, and there is no deployment. On phones the graph scrolls sideways inside its box, and the relationship list below it carries the same information.
 
 - **Live evidence is thin.** 5 of 13 cases have been run live. Reasoning can exhaust the 2,048-token budget on large two-document prompts (E10).
 - **Semantic errors pass validation.** A wrong relation type, or a link to the wrong but real target, is published as a candidate. Review is required before any use.

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RegulaGraph</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">RegulaGraph <span class="sub">Evidence-grounded investigation of BCT circulars</span></div>
+    <nav class="tabs" aria-label="Views">
+      <button type="button" class="tab active" data-view="investigate">Investigate</button>
+      <button type="button" class="tab" data-view="evaluation">Evaluation</button>
+    </nav>
+  </header>
+
+  <div id="replay-banner" class="banner replay" role="status">
+    REPLAY MODE: recorded Muse responses replayed through the verification pipeline. No model is called.
+  </div>
+
+  <main>
+    <section id="view-investigate" class="view">
+      <aside class="panel picker">
+        <h2>Curated investigations</h2>
+        <ul id="scenario-list" class="scenario-list" aria-label="Scenarios"></ul>
+        <p class="hint">Curated questions only. Every result is an AI-generated candidate and unconfirmed.</p>
+      </aside>
+
+      <section class="panel result" aria-live="polite">
+        <div id="question" class="question"></div>
+        <div id="recording" class="recording"></div>
+        <div id="state" class="state" hidden></div>
+        <div id="graph-wrap" class="graph-wrap" hidden>
+          <svg id="graph" role="img" aria-label="Directed relationship graph"></svg>
+          <p class="legend"><span class="legend-edge"></span> AI candidate relationship (unconfirmed). Click a relationship to inspect its evidence.</p>
+          <p class="legend narrow-only">Scroll the graph sideways to see the target, or use the list below.</p>
+        </div>
+        <ul id="relationship-list" class="relationship-list" aria-label="Relationships"></ul>
+        <div id="rejected" class="rejected" hidden></div>
+      </section>
+
+      <aside class="panel inspector" id="inspector" aria-live="polite">
+        <h2>Evidence</h2>
+        <p class="hint">Select a relationship.</p>
+      </aside>
+    </section>
+
+    <section id="view-evaluation" class="view" hidden>
+      <div class="panel wide">
+        <h2>Evaluation (current scorer)</h2>
+        <p id="eval-meaning" class="hint"></p>
+        <table id="eval-table" class="eval-table">
+          <thead><tr><th>Case</th><th>Phenomenon</th><th>Polarity</th><th>Status</th><th>Detail</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <h3>Structural validation probes (no model)</h3>
+        <div id="eval-structural"></div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
