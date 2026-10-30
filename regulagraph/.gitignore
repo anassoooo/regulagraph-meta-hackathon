@@ -9,3 +9,6 @@ build/
 # Source PDFs are downloaded locally, not committed (see data/README.md).
 data/raw/
 *.pdf
+
+# Ad-hoc demo outputs (evaluation results are committed).
+eval/results/investigation_*.json

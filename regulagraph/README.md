@@ -2,25 +2,39 @@
 
 RegulaGraph is an AI agent that investigates the impact of public Central Bank of Tunisia (BCT) regulations. It traces how changes affect related provisions and produces impact reports in which every claim cites a source passage.
 
-**Status: Sprint 1 (foundation).** Done so far: the health endpoint, domain schemas, PDF extraction with page-level provenance, evidence verification and the Meta model adapter. The investigation agent, retrieval, graph storage and frontend are not built yet.
+**Status: Sprint 2 (first end-to-end investigation).** The working pipeline:
+
+1. real BCT circulars, hash-verified;
+2. provision spans with exact offsets;
+3. a narrow relationship investigation in which Muse Spark proposes and deterministic validators check;
+4. finalization;
+5. a manually written evaluation set.
+
+Every relationship is published as **`candidate`**: nothing is ever confirmed. **No live Muse call has been made from this repository yet.** The opt-in smoke test is ready; see [Live Muse calls](#live-muse-calls-opt-in-paid). Graph storage and a frontend are out of scope.
 
 ## Layout
 
 ```
 app/
-  main.py                  FastAPI app factory
-  api/health.py            GET /health/live
-  core/config.py           environment-based settings (pydantic-settings)
-  core/errors.py           structured errors + FastAPI handler
-  core/ids.py              deterministic, content-derived identifiers
-  models/schemas.py        Document, ExtractedDocument (+ ExtractionProvenance), Provision,
-                           Evidence, Inference, RegulatoryRelationship, InvestigationReport,
-                           FinalizedReport
-  services/document_parser.py  PDF -> per-page text (pypdf), with extraction provenance
-  services/evidence.py         build/verify verbatim evidence spans (incl. whole reports)
+  core/config.py               environment-based settings (incl. ingestion and prompt limits)
+  core/errors.py, core/ids.py  structured errors, canonical content-derived IDs
+  models/schemas.py            Document, ExtractedDocument, Provision (+ segments), Evidence, Inference,
+                               RegulatoryRelationship (+ LexicalMatch), InvestigationReport, FinalizedReport
+  services/document_parser.py  PDF -> per-page text (pypdf), size/page limits, extraction provenance
+  services/corpus.py           manifest of public BCT circulars; hash-checked loading
+  services/quality.py          per-page extraction-quality signals
+  services/provisions.py       provision segmentation (French circulars) and span verification (R1)
+  services/relationships.py    evidence-in-provision and lexical checks for relationships (R2)
+  services/evidence.py         verbatim evidence spans
   services/report.py           finalize_report: the only path to a publishable report
-  services/meta_client.py      ModelAdapter protocol + Meta Model API adapter
-tests/                     pytest suite (synthetic PDFs, mocked HTTP)
+  services/meta_client.py      ModelAdapter protocol, Meta Model API adapter, ReplayAdapter
+  services/investigator.py     retrieval -> Muse proposal -> validation -> finalized report
+  services/evaluation.py       evaluation cases, scoring, structural probes
+data/manifest.json             corpus: URLs, dates, SHA-256, extraction notes (PDFs not committed)
+eval/cases.json                12 manually written cases (positive and negative)
+eval/results/                  recorded evaluation runs
+scripts/                       fetch_corpus, smoke_test, investigate, run_eval
+docs/                          EXTRACTION_QUALITY.md, SPRINT2_REQUIREMENTS.md
 ```
 
 ## Setup
@@ -32,14 +46,8 @@ cd regulagraph
 python -m venv .venv
 # Windows: .venv\Scripts\activate    macOS/Linux: source .venv/bin/activate
 pip install -e ".[dev]"
-cp .env.example .env    # then fill in values locally; .env is git-ignored
-```
-
-## Run
-
-```bash
-uvicorn app.main:app --reload
-curl http://127.0.0.1:8000/health/live    # {"status":"ok"}
+cp .env.example .env              # fill in locally; .env is git-ignored
+python scripts/fetch_corpus.py    # downloads 5 BCT PDFs into data/raw/ and verifies SHA-256
 ```
 
 ## Test
@@ -48,68 +56,150 @@ curl http://127.0.0.1:8000/health/live    # {"status":"ok"}
 pytest
 ```
 
-Tests make no network calls and need no API key. They pass on Python 3.11 and 3.13. They generate their PDFs at runtime and mock the Meta API with `httpx.MockTransport`.
+- **No network, no key.** Tests make no network calls and need no API key. They pass on Python 3.11 and 3.13.
+- **Real-corpus tests** (`test_real_corpus.py`, the gold-quote and structural-probe tests in `test_evaluation.py`) run only when the PDFs have been fetched. Otherwise they are skipped.
+- **Live Meta test** (`tests/test_live_meta.py`) is skipped unless `RUN_LIVE_META=1`.
+- **Mocked API.** Elsewhere the Meta API is mocked with `httpx.MockTransport` (`tests/test_investigator.py::test_end_to_end_with_mocked_meta_http_api`).
+
+## Demo (reproducible, no paid call)
+
+```bash
+# What would be sent to the model (retrieved provisions), without sending it:
+python scripts/investigate.py "Quelle circulaire la circulaire n°2026-10 abroge-t-elle ou remplace-t-elle ?" \
+    --docs bct-2026-10-fr bct-2018-16-fr --show-prompt
+
+# Full pipeline with a replayed, hand-written answer (one valid proposal, one with a paraphrased quote):
+python scripts/investigate.py "Quelle circulaire la circulaire n°2026-10 abroge-t-elle ou remplace-t-elle ?" \
+    --docs bct-2026-10-fr bct-2018-16-fr --replay examples/replay_e01_handwritten.json
+
+# Validator evaluation over all 12 cases (no model):
+python scripts/run_eval.py structural
+```
+
+The replay file is labelled as hand-written. Its output demonstrates the pipeline, not Muse.
+
+## Live Muse calls (opt-in, paid)
+
+Meta's pricing page (checked 2026-10-30) lists:
+
+- pay-as-you-go billing, **with no free tier**;
+- **no spending limit** and **no balance endpoint**;
+- `muse-spark-1.3` at $1.25 per million input tokens and $4.25 per million output tokens.
+
+Nothing here can check your credits, so every live entry point needs `META_INFERENCE_ENABLED=true`, `MODEL_API_KEY`, **and** an explicit `--confirm-paid-call`:
+
+```bash
+python scripts/smoke_test.py --confirm-paid-call                 # 1 request, <=64 tokens out (< $0.001)
+python scripts/run_eval.py live --confirm-paid-call [--case E01] # 1 request per case
+python scripts/investigate.py "<question>" --docs ... --live --confirm-paid-call
+```
+
+**Per-request bounds:**
+
+- at most `META_MAX_PROMPT_CHARS` characters of provision text, 24,000 by default (about 6-8k input tokens);
+- at most `META_MAX_COMPLETION_TOKENS` tokens, 1,024 by default, which per the API docs covers output plus reasoning;
+- `temperature=0`, `reasoning_effort="low"`, and a strict JSON schema (`response_format`).
+
+At default limits, one investigation therefore costs about $0.015 or less.
+
+**What gets recorded:** each call stores the model ID, token usage (including reasoning tokens), latency, HTTP status, finish reason, refusal and rate-limit headers. The key is never logged or written.
+
+## How an investigation works (`services/investigator.py`)
+
+1. **Retrieve.** Retrieval is BM25 over the question, with bonuses for provisions that cite another corpus document, for documents the question names, and for articles it names. It is bounded by provision count and character budget, and provisions are never truncated.
+2. **Prompt.** Muse sees document and provision IDs and text in `<provision>` elements, which are marked as data, not instructions. It must answer in a strict JSON schema with source, type, target (a provision or a whole document), verbatim quotes and a rationale. There is **no confidence field**.
+3. **Model failures.** Refusal, `finish_reason=length` (never parsed), `content_filter`, empty content, malformed JSON, provider errors and disabled inference all produce a finalized report with **no relationships**, plus a recorded outcome.
+4. **Per-proposal checks.** Each proposal is rejected (with a recorded reason) if:
+   - it is malformed;
+   - it uses an unknown source or target ID, or a quoted provision as its source;
+   - it relates something to itself;
+   - it has a quote outside the source or target;
+   - its quote is not found verbatim;
+   - it has no source-side evidence;
+   - it duplicates another proposal.
+5. **Accepted proposals.** Each becomes `Inference` + `RegulatoryRelationship(basis="inferred", status="candidate")` with exact evidence spans. A `lexical_match` is recorded when the source quote names the target. That is only a lexical mention, not proof.
+6. **Finalize.** `finalize_report` re-validates everything (below) and returns an immutable, digest-bound `FinalizedReport`.
+
+## Evaluation (`eval/`)
+
+`eval/cases.json` holds 12 cases: 7 positive and 5 negative. They cover:
+
+- an explicit repeal;
+- relationship direction and type;
+- negation ("ne sont pas applicables", "sans préjudice");
+- repeated article labels (Annex 5 of 2026-10 has its own Articles 1-11);
+- an extraction artefact (`l’article 1 7`);
+- targets outside the corpus (91-24, 2017-08);
+- a provision-level overreach;
+- an unrelated pair.
+
+Gold quotes are checked automatically against the extracted text. The cases were written from the text during implementation and **have not been reviewed by a domain expert** (`review.reviewed_by` is `null`).
+
+**Recorded results** (`eval/results/`):
+
+- **Structural probes** (`python scripts/run_eval.py structural`, no model). Hand-made proposals go through the real pipeline. See `eval/README.md` for the recorded run. Gold answers are accepted. Paraphrased quotes, fabricated targets, reversed directions and quotes taken from unrelated provisions are rejected. Wrong relation types and forbidden links that cite a real quote **are published as candidates**, which is the measured limit of structural validation.
+- **Live model evaluation: not run.** No Muse results exist yet. None are claimed.
 
 ## Configuration
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `MODEL_API_KEY` | unset | Meta Model API key, sent as `Authorization: Bearer …`. Stored as `SecretStr`, so it is never shown in reprs or logs. |
-| `META_INFERENCE_ENABLED` | `false` | **Billing safeguard.** The adapter refuses to send any request unless this is `true`. |
+| `MODEL_API_KEY` | unset | Meta Model API key, sent as `Authorization: Bearer …`. `SecretStr`: never shown in reprs or logs |
+| `META_INFERENCE_ENABLED` | `false` | **Billing safeguard.** No request is sent unless this is `true` |
 | `META_API_BASE_URL` | `https://api.meta.ai/v1` | API base URL |
 | `META_MODEL_ID` | `muse-spark-1.3` | Model identifier |
-| `META_MAX_COMPLETION_TOKENS` | `1024` | Upper limit on `max_completion_tokens` for every request |
+| `META_MAX_COMPLETION_TOKENS` | `1024` | Upper limit on `max_completion_tokens` (output plus reasoning) for every request |
+| `META_MAX_PROMPT_CHARS` | `24000` | Upper limit on provision text in one prompt |
 | `META_REQUEST_TIMEOUT_SECONDS` | `60` | HTTP timeout |
+| `MAX_PDF_BYTES` | `20000000` | Ingestion limit, checked before the file is read or parsed |
+| `MAX_PDF_PAGES` | `200` | Ingestion limit, checked before any text is extracted |
 | `LOG_LEVEL` | `INFO` | Logging level |
 
 ## Design rules
 
-- **Evidence vs inference.** `Evidence` is a verbatim span of extracted page text: document, 1-based page number, character offsets and the quote. Models never produce it. `Inference` is model output; it must name its `model_id` and cite at least one evidence ID. A `RegulatoryRelationship` has `basis` set to `extracted` (stated in the text) or `inferred` (needs an `inference_id`). Both kinds need evidence.
-- **Quotes must exist in the source.** `locate_quote` accepts a quote only if it appears verbatim on the cited page. `verify_evidence` and `verify_report_evidence` re-check spans against the extracted page text. `InvestigationReport` rejects any reference that does not resolve to a document, provision, evidence item or inference in the same report.
-
-> **Scope of verification.** These checks prove that a cited passage **exists** at the stated location. They do **not** prove that the passage semantically supports the inference or relationship citing it. They also don't check that the passage belongs to the provisions a relationship names. A real quote attached to an unrelated claim passes every current check. Neither semantic support checking nor checking evidence against provisions is implemented. Both are planned for Sprint 2 (see [docs/SPRINT2_REQUIREMENTS.md](docs/SPRINT2_REQUIREMENTS.md)).
-- **Deterministic IDs.** IDs are hashes of content and position. For example, `doc_<sha256[:32]>` is computed from the PDF bytes, so it does not change if the file is renamed. If a supplied ID does not match its content, it is rejected.
-  - **No delimiter joining.** ID inputs are hashed as canonical JSON (`ids.stable_id`: scheme tag, prefix, typed parts, nested lists kept as lists). Field values containing separators, JSON syntax or look-alike types (`1` vs `"1"`) cannot collide.
-  - **Length.** IDs keep 128 bits of SHA-256. Content digests use all 256 bits.
-  - **Document IDs** must match `doc_<32 hex>`, which keeps `page_id` (`<doc_id>:p<n>`) unambiguous.
-- **Run ID vs content digest.** `InvestigationReport.report_id` identifies the investigation *run*: question, time and documents. It does not cover findings, so two runs with the same inputs and different findings share it. `content_digest()` is a full SHA-256 over the report's canonical JSON, so any change to a finding changes it.
-- **Mandatory finalization.** Pydantic doesn't re-validate on attribute assignment or list mutation, so a report can be changed after it was built. `services/report.py:finalize_report(report, sources)` is the only supported way to publish. It works in this order:
+- **Evidence vs inference.** `Evidence` is a verbatim span of extracted page text: document, 1-based page number, character offsets and the quote. Models never produce it; quotes from a model are *located* in the source, and the span comes from the source. `Inference` is model output, naming its `model_id` and citing evidence.
+- **Provision identity is the source span (R1).** `Provision` is identified by `(document_id, segments)`, where each segment is `(page, char_start, char_end)` and one segment covers each consecutive page. The label (`Article 5 :`) and normalised `number` are display and lookup attributes, so repeated labels never collide.
+  - **Text** is the segment texts joined by an explicit `PROVISION_SEGMENT_SEPARATOR` (`"\n"`).
+  - **Spans keep the source exactly,** including running headers and page numbers.
+  - **Nesting is recorded** (`parent_provision_id`) for an annex's own articles and for quoted headings (`quoted=True`). A quoted provision can never be a relationship source.
+- **Relationship evidence must sit in the related provisions (R2).** At finalization, every cited evidence item must lie inside one segment of the source or target provision, and at least one inside the source. An inference may cite only the relationship's evidence. A recorded `lexical_match` must point into source-side evidence and match the target's designation (`regulagraph.lexical.v1`). `basis="extracted"` requires such a match.
+- **Mandatory finalization.** `finalize_report(report, sources)` works in this order:
   1. Re-validates a serialized snapshot of the report.
   2. Re-validates each source extraction.
-  3. Applies the publication rules.
-  4. Verifies every quote against its source page text.
-  5. Returns an immutable `FinalizedReport`: canonical snapshot text, `content_digest`, and the extraction digests it was verified against (`verified_sources`, a read-only mapping copied at construction, so it can't be edited in place). Loading a `FinalizedReport` re-checks the digest, the canonical form and the publication rules. It cannot re-check evidence without the sources.
-- **Fail-closed publication.** `RegulatoryRelationship.status` defaults to `"candidate"`, meaning proposed and not confirmed. Only `basis="extracted"` relationships may ever be `"confirmed"`. Confirmation checks don't exist yet (provision association is Sprint 2 R2), so `finalize_report` and `FinalizedReport` **reject every confirmed relationship**. The future investigator can publish only candidates until those checks exist. Consumers must present candidates as unconfirmed.
-- **Extraction provenance.** Each `ExtractedDocument` records `extractor_name`, `extractor_version`, `extraction_mode` and a `text_digest`, a SHA-256 over the source PDF hash and every page's text. Validation recomputes the digest, so a stored extraction artifact is tamper-evident, and a re-extraction can be compared exactly.
-  > The digest does **not** authenticate the text against the PDF bytes. Anyone who alters the text can recompute the digest. Only re-running the recorded extractor on the source PDF proves where the text came from. A test pins this limit.
-- **Structured errors.** Errors subclass `RegulaGraphError` (`code`, `message`, `details`) and are returned as `{"error": {...}}`.
+  3. Applies the fail-closed publication rules.
+  4. Verifies every quote, then every provision span (and the overlap and nesting rule), then the R2 checks.
+  5. Returns an immutable `FinalizedReport` (canonical snapshot, `content_digest`, read-only `verified_sources`).
+- **Fail-closed publication.** `status` defaults to `"candidate"`. `finalize_report` and `FinalizedReport` reject every `"confirmed"` relationship, because no confirmation procedure exists. A model can never set the status: its schema has no such field.
+- **Deterministic IDs.** IDs are canonical-JSON hashes of content and position (128 bits; content digests 256 bits). Field values containing separators or look-alike types cannot collide. `report_id` identifies the run; `content_digest()` binds the findings.
+- **Extraction provenance.** Each extraction records the extractor name, version and mode, plus a `text_digest`. Corpus loading checks the PDF bytes against the manifest SHA-256 before parsing. The text digest is tamper-evident but does **not** authenticate text against PDF bytes: only re-extraction does.
+- **Structured errors.** `RegulaGraphError` (`code`, `message`, `details`) is returned as `{"error": {...}}`. Limit errors name the limit.
+
+> **Scope of verification.** The checks prove that a cited passage exists at the stated location, lies inside the provision it is attributed to, and (when recorded) names the target. They do **not** prove that the passage means what the relationship says. "Sans préjudice de l'article 14" and "abroge l'article 14" pass the same structural checks. Semantic entailment is not implemented, and neither a lexical match nor anything the model says is treated as proof. `tests/test_relationships.py::test_lexical_match_is_not_semantic_support` and the structural probes keep this limit visible.
+
+## Known limitations
+
+- **No live run.** Muse output quality is unmeasured, so prompt quality, retrieval recall on real questions and refusal behaviour are unknown.
+- **Semantic errors pass validation.** A wrong relation type, or a link to the wrong but real target, is published as a candidate. Review is required before any use.
+- **Retrieval is lexical** (BM25 plus bonuses) and may miss the relevant provision. The evaluation records retrieval hits per case.
+- **Segmentation fits BCT French layouts only.** Headings must start a line and carry a separator. Annexes are recognised only at the top of a page. Replacement text for another instrument's annex is not marked as quoted.
+- **Arabic is not used.** The Arabic 2018-16 PDF extracts with substituted digits and letters, and no automatic signal detects it (see `docs/EXTRACTION_QUALITY.md`).
+- **Not bound yet:** evidence is not bound to an extraction digest, and stored artifacts are not re-extracted (R3 remainder). There is no extraction time limit or decompression-bomb guard (R5 remainder).
+- **No OCR.**
+- **Reuse rights.** The PDFs are not redistributed. The BCT site terms do not clearly allow it.
 
 ## PDF extraction
 
-[pypdf](https://pypi.org/project/pypdf/) (BSD-3-Clause) extracts text page by page with `extract_text(extraction_mode="plain")`. RegulaGraph stores that output unchanged. Accents, non-breaking spaces, repeated spaces, tabs, line breaks and hyphenation are kept, and tests pin this behaviour. Evidence offsets index into this stored text.
-
-How it differs from the PyMuPDF version (Sprint 1, commit `2b6bd13`):
-
-| Aspect | PyMuPDF 1.28 | pypdf 6.x |
-|---|---|---|
-| End of page text | Appended a trailing `\n` | No trailing newline |
-| Spacing and line breaks | MuPDF's text-line reconstruction | pypdf's own heuristics from text-positioning operators. On real PDFs (justified text, kerning) the spaces and breaks **may differ**; this has not been measured on BCT documents yet |
-| Reading order | Content-stream order | Content-stream order. Neither reorders multi-column layouts |
-| Encrypted PDFs | Opened files with only an owner password; rejected files needing a user password | Same behaviour. AES needs `cryptography`, installed through the `pypdf[crypto]` extra |
-| Damaged files | MuPDF repair | Lenient parsing (`strict=False`) logs warnings through the `pypdf` logger and may partly recover. Parse failures become `PDFExtractionError` |
-| Speed | Native C | Pure Python, expected to be slower (not benchmarked) |
-
-Document IDs are unchanged because they hash the PDF bytes. Page text and evidence offsets from the old parser are **not** compatible, but no extracted data had been stored yet. Extracted text also depends on the parser version, so pypdf is pinned to `<7`, and every extraction records the extractor version (see *Extraction provenance* above).
+[pypdf](https://pypi.org/project/pypdf/) (BSD-3-Clause) extracts text page by page with `extract_text(extraction_mode="plain")`, stored unchanged; evidence offsets index into it. Measured behaviour on the real corpus is in [docs/EXTRACTION_QUALITY.md](docs/EXTRACTION_QUALITY.md). pypdf is pinned to `<7`.
 
 ## Meta Model API contract
 
-Checked against the official docs on 2026-10-27 (see the docstring in `services/meta_client.py`):
-`POST https://api.meta.ai/v1/chat/completions`, Bearer authentication, an OpenAI-style `messages` request, and the reply in `choices[0].message.content`. Errors come back as `{"error": {"message", "type", "param", "code"}}`. Status codes 429, 500 and 503 are flagged retryable. No live call has been made yet.
+The contract was verified on 2026-10-27 and re-checked on 2026-10-30. See the docstring in `services/meta_client.py`:
+
+- **Endpoint and auth:** `POST https://api.meta.ai/v1/chat/completions`, with Bearer authentication.
+- **Request fields used:** `response_format` (`json_schema`), `reasoning_effort`, and `max_completion_tokens`, which covers output plus reasoning.
+- **Response:** the reply is in `choices[0].message.content`, alongside `refusal` and `finish_reason` (`stop`, `length`, `content_filter`, …).
+- **Errors:** they come back as `{"error": {...}}`; 429, 500 and 503 are retryable.
 
 ## Licensing
 
 All runtime dependencies are permissively licensed. Choosing a licence for the project itself is still an open decision. See [LICENSING.md](LICENSING.md).
-
-## Source documents
-
-Do not commit PDFs (`*.pdf` and `data/raw/` are git-ignored). Download public BCT circulars into `data/raw/` and record where each came from in `data/manifest.json`.
