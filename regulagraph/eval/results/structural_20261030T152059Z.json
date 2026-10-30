@@ -1,0 +1,441 @@
+{
+  "kind": "structural_probes",
+  "note": "Hand-made proposals replayed through the pipeline, plus deterministic retrieval recall; no model was called.",
+  "settings": {
+    "max_prompt_chars": 24000
+  },
+  "summary": {
+    "probes": 46,
+    "accept_as_expected": 7,
+    "accept_total": 7,
+    "reject_as_expected": 24,
+    "reject_total": 24,
+    "undetectable_published": 15,
+    "undetectable_total": 15,
+    "retrieval_source_hits": 7,
+    "retrieval_target_hits": 5,
+    "retrieval_target_total": 5,
+    "retrieval_cases": 7
+  },
+  "retrieval": [
+    {
+      "case_id": "E01",
+      "source_retrieved": true,
+      "target_retrieved": null,
+      "retrieved": 8,
+      "prompt_chars": 11696
+    },
+    {
+      "case_id": "E03",
+      "source_retrieved": true,
+      "target_retrieved": null,
+      "retrieved": 8,
+      "prompt_chars": 11765
+    },
+    {
+      "case_id": "E04",
+      "source_retrieved": true,
+      "target_retrieved": true,
+      "retrieved": 8,
+      "prompt_chars": 12292
+    },
+    {
+      "case_id": "E05",
+      "source_retrieved": true,
+      "target_retrieved": true,
+      "retrieved": 8,
+      "prompt_chars": 14805
+    },
+    {
+      "case_id": "E06",
+      "source_retrieved": true,
+      "target_retrieved": true,
+      "retrieved": 8,
+      "prompt_chars": 18813
+    },
+    {
+      "case_id": "E07",
+      "source_retrieved": true,
+      "target_retrieved": true,
+      "retrieved": 8,
+      "prompt_chars": 10785
+    },
+    {
+      "case_id": "E12",
+      "source_retrieved": true,
+      "target_retrieved": true,
+      "retrieved": 8,
+      "prompt_chars": 11798
+    }
+  ],
+  "results": [
+    {
+      "case_id": "E01",
+      "probe": "gold",
+      "expectation": "accept",
+      "published": true,
+      "rejection": null,
+      "as_expected": true
+    },
+    {
+      "case_id": "E01",
+      "probe": "paraphrased_quote",
+      "expectation": "reject",
+      "published": false,
+      "rejection": "quote_not_found",
+      "as_expected": true
+    },
+    {
+      "case_id": "E01",
+      "probe": "wrong_type:amends",
+      "expectation": "undetectable",
+      "published": true,
+      "rejection": null,
+      "as_expected": true
+    },
+    {
+      "case_id": "E01",
+      "probe": "fabricated_target",
+      "expectation": "reject",
+      "published": false,
+      "rejection": "unknown_target",
+      "as_expected": true
+    },
+    {
+      "case_id": "E02",
+      "probe": "forbidden_0_with_real_quote",
+      "expectation": "undetectable",
+      "published": true,
+      "rejection": null,
+      "as_expected": true
+    },
+    {
+      "case_id": "E03",
+      "probe": "gold",
+      "expectation": "accept",
+      "published": true,
+      "rejection": null,
+      "as_expected": true
+    },
+    {
+      "case_id": "E03",
+      "probe": "paraphrased_quote",
+      "expectation": "reject",
+      "published": false,
+      "rejection": "quote_not_found",
+      "as_expected": true
+    },
+    {
+      "case_id": "E03",
+      "probe": "wrong_type:amends",
+      "expectation": "undetectable",
+      "published": true,
+      "rejection": null,
+      "as_expected": true
+    },
+    {
+      "case_id": "E03",
+      "probe": "fabricated_target",
+      "expectation": "reject",
+      "published": false,
+      "rejection": "unknown_target",
+      "as_expected": true
+    },
+    {
+      "case_id": "E04",
+      "probe": "gold",
+      "expectation": "accept",
+      "published": true,
+      "rejection": null,
+      "as_expected": true
+    },
+    {
+      "case_id": "E04",
+      "probe": "paraphrased_quote",
+      "expectation": "reject",
+      "published": false,
+      "rejection": "quote_not_found",
+      "as_expected": true
+    },
+    {
+      "case_id": "E04",
+      "probe": "wrong_type:amends",
+      "expectation": "undetectable",
+      "published": true,
+      "rejection": null,
+      "as_expected": true
+    },
+    {
+      "case_id": "E04",
+      "probe": "fabricated_target",
+      "expectation": "reject",
+      "published": false,
+      "rejection": "unknown_target",
+      "as_expected": true
+    },
+    {
+      "case_id": "E04",
+      "probe": "reversed_direction",
+      "expectation": "reject",
+      "published": false,
+      "rejection": "no_source_evidence",
+      "as_expected": true
+    },
+    {
+      "case_id": "E04",
+      "probe": "quote_from_unrelated_provision",
+      "expectation": "reject",
+      "published": false,
+      "rejection": "quote_outside_related",
+      "as_expected": true
+    },
+    {
+      "case_id": "E05",
+      "probe": "gold",
+      "expectation": "accept",
+      "published": true,
+      "rejection": null,
+      "as_expected": true
+    },
+    {
+      "case_id": "E05",
+      "probe": "paraphrased_quote",
+      "expectation": "reject",
+      "published": false,
+      "rejection": "quote_not_found",
+      "as_expected": true
+    },
+    {
+      "case_id": "E05",
+      "probe": "wrong_type:amends",
+      "expectation": "undetectable",
+      "published": true,
+      "rejection": null,
+      "as_expected": true
+    },
+    {
+      "case_id": "E05",
+      "probe": "fabricated_target",
+      "expectation": "reject",
+      "published": false,
+      "rejection": "unknown_target",
+      "as_expected": true
+    },
+    {
+      "case_id": "E05",
+      "probe": "reversed_direction",
+      "expectation": "reject",
+      "published": false,
+      "rejection": "no_source_evidence",
+      "as_expected": true
+    },
+    {
+      "case_id": "E05",
+      "probe": "quote_from_unrelated_provision",
+      "expectation": "reject",
+      "published": false,
+      "rejection": "quote_outside_related",
+      "as_expected": true
+    },
+    {
+      "case_id": "E06",
+      "probe": "gold",
+      "expectation": "accept",
+      "published": true,
+      "rejection": null,
+      "as_expected": true
+    },
+    {
+      "case_id": "E06",
+      "probe": "paraphrased_quote",
+      "expectation": "reject",
+      "published": false,
+      "rejection": "quote_not_found",
+      "as_expected": true
+    },
+    {
+      "case_id": "E06",
+      "probe": "wrong_type:amends",
+      "expectation": "undetectable",
+      "published": true,
+      "rejection": null,
+      "as_expected": true
+    },
+    {
+      "case_id": "E06",
+      "probe": "fabricated_target",
+      "expectation": "reject",
+      "published": false,
+      "rejection": "unknown_target",
+      "as_expected": true
+    },
+    {
+      "case_id": "E06",
+      "probe": "reversed_direction",
+      "expectation": "reject",
+      "published": false,
+      "rejection": "no_source_evidence",
+      "as_expected": true
+    },
+    {
+      "case_id": "E06",
+      "probe": "quote_from_unrelated_provision",
+      "expectation": "reject",
+      "published": false,
+      "rejection": "quote_outside_related",
+      "as_expected": true
+    },
+    {
+      "case_id": "E07",
+      "probe": "gold",
+      "expectation": "accept",
+      "published": true,
+      "rejection": null,
+      "as_expected": true
+    },
+    {
+      "case_id": "E07",
+      "probe": "paraphrased_quote",
+      "expectation": "reject",
+      "published": false,
+      "rejection": "quote_not_found",
+      "as_expected": true
+    },
+    {
+      "case_id": "E07",
+      "probe": "wrong_type:amends",
+      "expectation": "undetectable",
+      "published": true,
+      "rejection": null,
+      "as_expected": true
+    },
+    {
+      "case_id": "E07",
+      "probe": "fabricated_target",
+      "expectation": "reject",
+      "published": false,
+      "rejection": "unknown_target",
+      "as_expected": true
+    },
+    {
+      "case_id": "E07",
+      "probe": "reversed_direction",
+      "expectation": "reject",
+      "published": false,
+      "rejection": "no_source_evidence",
+      "as_expected": true
+    },
+    {
+      "case_id": "E07",
+      "probe": "quote_from_unrelated_provision",
+      "expectation": "reject",
+      "published": false,
+      "rejection": "quote_outside_related",
+      "as_expected": true
+    },
+    {
+      "case_id": "E08",
+      "probe": "forbidden_0_with_real_quote",
+      "expectation": "undetectable",
+      "published": true,
+      "rejection": null,
+      "as_expected": true
+    },
+    {
+      "case_id": "E08",
+      "probe": "forbidden_1_with_real_quote",
+      "expectation": "undetectable",
+      "published": true,
+      "rejection": null,
+      "as_expected": true
+    },
+    {
+      "case_id": "E09",
+      "probe": "forbidden_0_with_real_quote",
+      "expectation": "undetectable",
+      "published": true,
+      "rejection": null,
+      "as_expected": true
+    },
+    {
+      "case_id": "E10",
+      "probe": "forbidden_0_with_real_quote",
+      "expectation": "undetectable",
+      "published": true,
+      "rejection": null,
+      "as_expected": true
+    },
+    {
+      "case_id": "E11",
+      "probe": "forbidden_0_with_real_quote",
+      "expectation": "undetectable",
+      "published": true,
+      "rejection": null,
+      "as_expected": true
+    },
+    {
+      "case_id": "E11",
+      "probe": "forbidden_1_with_real_quote",
+      "expectation": "undetectable",
+      "published": true,
+      "rejection": null,
+      "as_expected": true
+    },
+    {
+      "case_id": "E12",
+      "probe": "gold",
+      "expectation": "accept",
+      "published": true,
+      "rejection": null,
+      "as_expected": true
+    },
+    {
+      "case_id": "E12",
+      "probe": "paraphrased_quote",
+      "expectation": "reject",
+      "published": false,
+      "rejection": "quote_not_found",
+      "as_expected": true
+    },
+    {
+      "case_id": "E12",
+      "probe": "wrong_type:amends",
+      "expectation": "undetectable",
+      "published": true,
+      "rejection": null,
+      "as_expected": true
+    },
+    {
+      "case_id": "E12",
+      "probe": "fabricated_target",
+      "expectation": "reject",
+      "published": false,
+      "rejection": "unknown_target",
+      "as_expected": true
+    },
+    {
+      "case_id": "E12",
+      "probe": "reversed_direction",
+      "expectation": "reject",
+      "published": false,
+      "rejection": "no_source_evidence",
+      "as_expected": true
+    },
+    {
+      "case_id": "E12",
+      "probe": "quote_from_unrelated_provision",
+      "expectation": "reject",
+      "published": false,
+      "rejection": "quote_outside_related",
+      "as_expected": true
+    },
+    {
+      "case_id": "E13",
+      "probe": "forbidden_0_with_real_quote",
+      "expectation": "undetectable",
+      "published": true,
+      "rejection": null,
+      "as_expected": true
+    }
+  ]
+}

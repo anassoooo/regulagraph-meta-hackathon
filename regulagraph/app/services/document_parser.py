@@ -39,18 +39,38 @@ EXTRACTION_MODE = "plain"
 _PARSE_ERRORS = (PyPdfError, ValueError, KeyError, TypeError, AttributeError, IndexError)
 
 
-def extract_pdf(path: str | Path) -> ExtractedDocument:
+DEFAULT_MAX_BYTES = 20_000_000
+DEFAULT_MAX_PAGES = 200
+
+
+def extract_pdf(
+    path: str | Path, *, max_bytes: int = DEFAULT_MAX_BYTES, max_pages: int = DEFAULT_MAX_PAGES
+) -> ExtractedDocument:
     path = Path(path)
     try:
+        size = path.stat().st_size
+        if size > max_bytes:  # checked before reading the file into memory
+            raise _too_large(path.name, size, max_bytes)
         data = path.read_bytes()
     except OSError as exc:
         raise PDFExtractionError("cannot read PDF file", details={"filename": path.name}) from exc
-    return extract_pdf_bytes(data, filename=path.name)
+    return extract_pdf_bytes(data, filename=path.name, max_bytes=max_bytes, max_pages=max_pages)
 
 
-def extract_pdf_bytes(data: bytes, *, filename: str) -> ExtractedDocument:
+def _too_large(filename: str, size: int, max_bytes: int) -> PDFExtractionError:
+    return PDFExtractionError(
+        "PDF exceeds the size limit",
+        details={"filename": filename, "limit": "max_pdf_bytes", "max": max_bytes, "actual": size},
+    )
+
+
+def extract_pdf_bytes(
+    data: bytes, *, filename: str, max_bytes: int = DEFAULT_MAX_BYTES, max_pages: int = DEFAULT_MAX_PAGES
+) -> ExtractedDocument:
     if not data:
         raise PDFExtractionError("PDF is empty", details={"filename": filename})
+    if len(data) > max_bytes:
+        raise _too_large(filename, len(data), max_bytes)
 
     try:
         reader = PdfReader(io.BytesIO(data))
@@ -67,6 +87,11 @@ def extract_pdf_bytes(data: bytes, *, filename: str) -> ExtractedDocument:
     pages: list[ExtractedPage] = []
     try:
         page_count = len(reader.pages)
+        if page_count > max_pages:  # checked before any page text is extracted
+            raise PDFExtractionError(
+                "PDF exceeds the page limit",
+                details={"filename": filename, "limit": "max_pdf_pages", "max": max_pages, "actual": page_count},
+            )
         title = (reader.metadata.title if reader.metadata else None) or None
         for index, page in enumerate(reader.pages):
             text = page.extract_text(extraction_mode=EXTRACTION_MODE)

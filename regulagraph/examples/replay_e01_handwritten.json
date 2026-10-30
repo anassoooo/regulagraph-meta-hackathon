@@ -1,0 +1,34 @@
+{
+  "note": "HAND-WRITTEN example answer for demonstrating the pipeline offline. It is not model output and must not be reported as a Muse result.",
+  "model_id": "handwritten-example",
+  "response": {
+    "relationships": [
+      {
+        "source_provision_id": "prov_c54fee71ede561dbe9964b904817d664",
+        "relation_type": "repeals",
+        "target_kind": "document",
+        "target_id": "doc_3403306ac786e03ea0bad99ebc126629",
+        "quotes": [
+          {
+            "provision_id": "prov_c54fee71ede561dbe9964b904817d664",
+            "text": "La présente circulaire abroge et remplace la circulaire n°2018-16"
+          }
+        ],
+        "rationale": "Article 52 states that circular 2026-10 repeals and replaces circular 2018-16."
+      },
+      {
+        "source_provision_id": "prov_c54fee71ede561dbe9964b904817d664",
+        "relation_type": "repeals",
+        "target_kind": "document",
+        "target_id": "doc_3403306ac786e03ea0bad99ebc126629",
+        "quotes": [
+          {
+            "provision_id": "prov_c54fee71ede561dbe9964b904817d664",
+            "text": "La circulaire 2018-16 est abrogée."
+          }
+        ],
+        "rationale": "Paraphrased quote: included to show that non-verbatim evidence is rejected."
+      }
+    ]
+  }
+}

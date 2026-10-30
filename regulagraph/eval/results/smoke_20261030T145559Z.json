@@ -1,0 +1,26 @@
+{
+  "kind": "smoke_test",
+  "started_at": "2026-10-30T14:55:54.328548+00:00",
+  "model_requested": "muse-spark-1.3",
+  "max_completion_tokens": 64,
+  "outcome": "ok",
+  "model_id": "muse-spark-1.3",
+  "response_id": "chatcmpl-01a18d4f-7e6f-72ae-bf9e-9a0feff5cd4b",
+  "http_status": 200,
+  "finish_reason": "stop",
+  "refusal": null,
+  "usage": {
+    "prompt_tokens": 69,
+    "completion_tokens": 58,
+    "total_tokens": 127,
+    "completion_tokens_details": {
+      "reasoning_tokens": 43
+    }
+  },
+  "latency_ms": 5576.8,
+  "rate_limit_remaining": {
+    "x-ratelimit-remaining-requests": "3000",
+    "x-ratelimit-remaining-tokens": "4000000"
+  },
+  "text": "{\"status\": \"ok\"}"
+}

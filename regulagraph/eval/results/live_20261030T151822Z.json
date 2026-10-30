@@ -1,0 +1,288 @@
+{
+  "kind": "live_eval",
+  "summary": {
+    "source": "live Meta Model API (not a replay)",
+    "max_completion_tokens": 2048,
+    "reasoning_effort": "low",
+    "max_prompt_chars": 24000,
+    "cases_run": 1,
+    "correct": 1,
+    "tokens": {
+      "prompt_tokens": 3307,
+      "completion_tokens": 1467,
+      "total_tokens": 4774
+    },
+    "model": "muse-spark-1.3"
+  },
+  "results": [
+    {
+      "case_id": "E13",
+      "question": "L'article 35 de la circulaire n°2026-10 abroge-t-il ou contredit-il l'article 17 de cette circulaire ?",
+      "prompt_chars": 12039,
+      "proposals_received": 0,
+      "score": {
+        "case_id": "E13",
+        "phenomenon": "negation",
+        "polarity": "negative",
+        "model_outcome": "ok",
+        "retrieved_provision_ids": [
+          "prov_d10d2d0ac395e8a2056c0eb3def8c8a5",
+          "prov_2e8955f5db95ca4bc08f23b4d39cf656",
+          "prov_0d10a3e0a6d0f3fa434671550a997ead",
+          "prov_ee42a434914cc6c96b146d4d7005cecf",
+          "prov_c54fee71ede561dbe9964b904817d664",
+          "prov_c6f8b3812e3b03419ae244cef0abb77e",
+          "prov_0f8fc0e7521a6e83062f7dd6f8d09ae2",
+          "prov_658d7a4340f64ef891e6f3acf7198df4"
+        ],
+        "retrieved_source": true,
+        "retrieved_target": null,
+        "published": [],
+        "rejected": 0,
+        "correct": true,
+        "errors": [],
+        "citation_ok": null
+      },
+      "model_call": {
+        "outcome": "ok",
+        "model_id": "muse-spark-1.3",
+        "response_id": "chatcmpl-01a18d63-fc71-759a-b6f6-af8d91152445",
+        "http_status": 200,
+        "finish_reason": "stop",
+        "refusal": null,
+        "usage": {
+          "prompt_tokens": 3307,
+          "completion_tokens": 1467,
+          "total_tokens": 4774,
+          "completion_tokens_details": {
+            "reasoning_tokens": 1453
+          }
+        },
+        "latency_ms": 7854.0,
+        "error": null,
+        "max_completion_tokens": 2048,
+        "reasoning_effort": "low",
+        "raw_text": "{\"relationships\": []}"
+      },
+      "rejected": [],
+      "content_digest": "47a6cd57e86c1e5ef3202bc6d801c5dc8d4b49c31e4bb4132196cbd3717ba9ee",
+      "report": {
+        "document_ids": [
+          "doc_fe31431614e7eeee7b163583c02af0e3"
+        ],
+        "evidence": [],
+        "generated_at": "2026-10-30T15:18:22.471640Z",
+        "inferences": [],
+        "provisions": [
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "preamble",
+            "label": "(préambule)",
+            "number": null,
+            "parent_provision_id": null,
+            "provision_id": "prov_d10d2d0ac395e8a2056c0eb3def8c8a5",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 1404,
+                "char_start": 0,
+                "page_number": 1
+              },
+              {
+                "char_end": 1271,
+                "char_start": 0,
+                "page_number": 2
+              }
+            ],
+            "text": "   \n \n 1  \n \n \n                                                                                   Tunis, le 25 septembre 2026. \n \n \n \n \nCirculaire de la Banque Centrale de Tunisie n°2026-10 \n \nObjet : Règles régissant l’activité et le fonctionnement des établissements de \npaiement. \nLe Gouverneur de la Banque Centrale de Tunisie, \nVu la loi organique n°2004 -63 du 27 juillet 2004 , relative à la protection des \ndonnées à caractère personnel,  \nVu la loi organique n°2015 -26 du 7 août 2015, relative à la lutte contre le \nterrorisme et à la répression du blanchiment d’argent telle que modifiée et \ncomplétée par la loi organique n°2019-9 du 23 janvier 2019,  \nVu la loi n°2000 -83 du 9 ao ût 2000, relative aux échanges et au commerce \nélectroniques, \nVu la loi n° 2005-51 du 27 juin 2005, relative au transfert électronique de fonds,  \nVu la loi n°2016 -35 du 25 avril 2016 , portant fixation du statut de la Banque \nCentrale de Tunisie notamment son article 8,  \nVu la loi n°2016-48 du 11 juillet 2016, relative aux banques et aux établissements \nfinanciers notamment ses articles 20 et 21,  \nVu le décret-loi n°2023-17 du 11 mars 2023, relatif à la cybersécurité, \nVu la circulaire aux établissements de crédit n° 2006-1 du 28 mars 2006, relative \nà la réglementation des conditions des opérations d’externalisation, \nVu la circulaire aux établissements de crédit n°2006-19 du 28 novembre 2006 , \n   \n \n 2  \n \nrelative au contrôle interne dans les établissements de crédit,  \nVu la circulaire aux banques et aux établissements financiers n°2017 -6 du 31 \njuillet 2017, relative au reporting comptable, prudentiel et statistique à la Banque \nCentrale de Tunisie,   \nVu la circulaire aux banques et aux établissements financiers n°2017 -08 du 19 \nseptembre 2017, relative aux dispositif et règles de contrôle interne en matière \nde lutte contre le blanchiment d’argent, le financement du terrorisme et le \nfinancement de la prolifération des armes de destruction massive, telle que \nmodifiée et comp létée par les textes subséquents et notamment la circulaire \nn°2025-17 du 22 décembre 2025,  \nVu la circulaire de la Banque Centrale de Tunisie n°2018 -16 du 31 décembre \n2018, relative aux règles régissant l’activité et le fonctionnement des \nétablissements de paiement, \nVu la circulaire de la Banque Centrale de Tunisie n°2020 -11 du 18 mai 2020, \nrelative aux  conditions de fourniture des services de paiement mobile \ndomestique, \nVu l’avis n° 2026-10 du Comité de Contrôle de la Conformité en date du 25 \nseptembre 2026 , tel que prévu par l’article 42 de la loi n°2016 -35 du 25 avril \n2016 portant fixation du statut de la Banque Centrale de Tunisie. \nDécide : \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "article",
+            "label": "Article 23",
+            "number": "23",
+            "parent_provision_id": null,
+            "provision_id": "prov_2e8955f5db95ca4bc08f23b4d39cf656",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 1840,
+                "char_start": 1614,
+                "page_number": 17
+              },
+              {
+                "char_end": 612,
+                "char_start": 0,
+                "page_number": 18
+              }
+            ],
+            "text": "Article 23 : Les établissements de paiement peuvent ouvrir , au profit des \ncommerçants acceptant des paiements de proximité ou à distance, y compris par \ntéléphone mobile, des comptes de paiement de transition dits « comptes \n   \n \n 18  \n \ncommerçants», non soumis aux plafonds prévus à l’article 1 7 de la présente \ncirculaire. \nCe compte est crédité exclusivement des flux d’exploitation  générés par les \ntransactions de paiement acceptées par le commerçant  et encaissés  sur son \ncompte ouvert auprès de l’établissement de paiement concerné.  \nL’établissement de paiement doit conclure avec le commerçant une convention \nfixant leurs droits et obligations,  notamment les modalités de fonctionnement du \ncompte ainsi que les conditions de sa clôture.  \nLe modèle de la convention doit être transmis à la Banque Centrale de Tunisie. \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "article",
+            "label": "Article 29",
+            "number": "29",
+            "parent_provision_id": null,
+            "provision_id": "prov_0d10a3e0a6d0f3fa434671550a997ead",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 1517,
+                "char_start": 374,
+                "page_number": 20
+              },
+              {
+                "char_end": 373,
+                "char_start": 0,
+                "page_number": 21
+              }
+            ],
+            "text": "Article 29: Les établissements de paiement peuvent mandater deux catégories \nd’agents de paiement : \na- Des agents de paiement principaux qui ne peuvent fournir que les services   \nsuivants : \n- L’ouverture de comptes de paiement de niveaux 1 et 2  t e ls  que \ndéfinis aux articles 15 et 17 de la présente circulaire. \n- Les opérations de versement et de retrait d’espèces sur les comptes de \npaiement ouverts auprès de l’établissement. \n- Les opérations de transfert de fonds effectuées par remise d’espèces.  \n- Les opérations de paiement effectuées par tout moyen de \ncommunication à distance même lorsque ces opérations exigent pour \nleur réalisation une remise d’espèces. \n- La commercialisation de tout moyen de paiement électronique adossé \nau compte de paiement émis par l’établissement de paiement. \n- La mise à disposition de fonds en provenance de l’étranger via des \nsociétés de transferts d’argent transfrontaliers. \nb- Des agents de paiement détaillants qui ne peuvent fournir que les services \nsuivants : \n- L’ouverture de comptes de paiement de niveau 1 , tel que définis par les \narticles 15 et 17 de la présente circulaire. \n   \n \n 21  \n \n- Les opérations de versement et de retrait d’espèces sur les comptes de \npaiement ouverts auprès de l’établissement. \n- Les opérations de transfert de fonds effectuées par remise d’espèces. \n- Les opérations de paiement effectuées par tout moyen de \ncommunication à distance même lorsque ces opérations exigent pour \nleur réalisation une remise d’espèces.  \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "article",
+            "label": "Article 35",
+            "number": "35",
+            "parent_provision_id": null,
+            "provision_id": "prov_ee42a434914cc6c96b146d4d7005cecf",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 1563,
+                "char_start": 924,
+                "page_number": 24
+              },
+              {
+                "char_end": 633,
+                "char_start": 0,
+                "page_number": 25
+              }
+            ],
+            "text": "Article 35 :  L’établissement de paiement ne peut mandater que les agents de \npaiement qui ouvrent sur ses livres un «  compte agent » qui fonctionne selon les \nrègles suivantes : \n- Le compte agent est destiné exclusivement à exécuter les services énumérés \npar l’article 29 de la présente circulaire. \n- Les facilités de crédits accordés par l’établissent de paiement sur le compte \nagent sont interdites. \n- Le compte agent ne peut en aucun moment présenter une position débitrice. \n- Le compte agent est distinct et séparé du compte commerçant visé à l’article \n23 de la présente circulaire. Lorsqu’une même personne cumule la qualité \n   \n \n 25  \n \nd’agent de paiement et de commerçant acceptant des paiements de proximité  \nou à distance , y compris le paiement mobile, elle est tenue d’ouvrir deux \ncomptes distincts, avec une séparation et une traçabilité  des flux propres à \nchaque activité. \nL’établissement de paiement est tenu de prendre les mesures nécessaires pour \nque les services énumérés par l’article 29 de la présente circulaire ne soient \nexécutés que dans la limite du solde créditeur disponible sur le compte agent. \nLes règles de plafonnement énumérées au niveau de l’article 17 de la présente \ncirculaire ne sont pas applicables au compte agent. \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "article",
+            "label": "Article 52",
+            "number": "52",
+            "parent_provision_id": null,
+            "provision_id": "prov_c54fee71ede561dbe9964b904817d664",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 1562,
+                "char_start": 1145,
+                "page_number": 33
+              },
+              {
+                "char_end": 16,
+                "char_start": 0,
+                "page_number": 34
+              }
+            ],
+            "text": "Article 52:  La présente circulaire abroge et remplace la circulaire n°2018-16 du \n31 décembre 2018 , relative aux règles régissant l’activité et le fonctionnement \ndes établissements de paiement et entre en vigueur dans un délai de trois mois à \npartir de la date de sa publication.  \n                                           Le Gouverneur, \n  \n                                                Fethi Zouhaier Nouri \n   \n \n 34  \n \n \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "annex",
+            "label": "Annexe 1 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre",
+            "number": "1",
+            "parent_provision_id": null,
+            "provision_id": "prov_c6f8b3812e3b03419ae244cef0abb77e",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 591,
+                "char_start": 16,
+                "page_number": 34
+              },
+              {
+                "char_end": 16,
+                "char_start": 0,
+                "page_number": 35
+              }
+            ],
+            "text": "Annexe 1 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre \n2026  \nELEMENTS D’IDENTIFICATION DES CLIENTS TITULAIRES DES COMPTES DE \nPAIEMENT DE NIVEAU 1 \n \n- Nom et prénom \n- Date et lieu de naissance \n- Nationalité \n- Profession \n- Numéro de téléphone \n- Numéro de la carte nationale d’identité ou numéro du passeport ou de la carte de \nséjour ou tout document d’identité délivré par une autorité étrangère reconnue  \n- Adresse officielle si différente de la carte nationale d’identité \n- Revenu mensuel estimé  \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n   \n \n 35  \n \n \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "annex",
+            "label": "Annexe 2 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre",
+            "number": "2",
+            "parent_provision_id": null,
+            "provision_id": "prov_0f8fc0e7521a6e83062f7dd6f8d09ae2",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 896,
+                "char_start": 16,
+                "page_number": 35
+              },
+              {
+                "char_end": 14,
+                "char_start": 0,
+                "page_number": 36
+              }
+            ],
+            "text": "Annexe 2 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre \n2026 \nELEMENTS D’IDENTIFICATION DES CLIENTS TITULAIRES DES COMPTES DE \nPAIEMENT DE NIVEAU 2 \n \nI- Pour les personnes physiques \n- Nom et prénom \n- Date et lieu de naissance \n- Nationalité \n- Profession \n- Numéro de la carte nationale d’identité ou numéro du passeport ou de la carte de \nséjour ou tout document d’identité délivré par une autorité étrangère reconnue  \n- Adresse officielle \n- Revenu mensuel estimé \n \nII -Pour les personnes morales \n- Dénomination ou raison sociale \n- Adresse du siège social \n- Forme juridique \n- Mandats et pouvoirs (Nom, prénom de la personne habilitée à mouvementer le \ncompte et spécimen de signature) \n- Extrait récent du registre national des entreprises \n- Bénéficiaire(s) effectif(s)  \n- Tout élément permettant d’apprécier la situation financière \n \n \n   \n \n 36  \n \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "annex",
+            "label": "Annexe 3 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre",
+            "number": "3",
+            "parent_provision_id": null,
+            "provision_id": "prov_658d7a4340f64ef891e6f3acf7198df4",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 947,
+                "char_start": 14,
+                "page_number": 36
+              },
+              {
+                "char_end": 16,
+                "char_start": 0,
+                "page_number": 37
+              }
+            ],
+            "text": "Annexe 3 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre \n2026 \nELEMENTS D’IDENTIFICATION DES CLIENTS TITULAIRES DES COMPTES DE \nPAIEMENT DE NIVEAU 3 \n \nI- Pour les personnes physiques \n- Nom et prénom \n- Date et lieu de naissance \n- Nationalité \n- Numéro de la  carte nationale d’identité ou numéro du passeport ou de la carte de \nséjour ou tout document d’identité délivré par une autorité étrangère reconnue  \n- Adresse officielle \n- Profession exercée  \n- Déclaration de la source du revenu \n \nII -Pour les personnes morales \n \n- Dénomination ou raison sociale \n- Adresse du siège social \n- Forme juridique \n- Nature d’activité \n- Extrait récent du registre national des entreprises  \n- Mandats et pouvoirs (Nom, prénom de la personne habilitée à mouvementer le \ncompte et spécimen de signature) \n- Tout élément permettant d’apprécier la situation financière \n- Bénéficiaire(s) effectif(s)  \n \n \n \n \n \n   \n \n 37  \n \n \n"
+          }
+        ],
+        "question": "L'article 35 de la circulaire n°2026-10 abroge-t-il ou contredit-il l'article 17 de cette circulaire ?",
+        "relationships": [],
+        "report_id": "rep_64a125e6e079879808a70c4adca047db"
+      },
+      "rescored": {
+        "case_id": "E13",
+        "phenomenon": "negation",
+        "polarity": "negative",
+        "model_outcome": "ok",
+        "retrieved_provision_ids": [
+          "prov_d10d2d0ac395e8a2056c0eb3def8c8a5",
+          "prov_2e8955f5db95ca4bc08f23b4d39cf656",
+          "prov_0d10a3e0a6d0f3fa434671550a997ead",
+          "prov_ee42a434914cc6c96b146d4d7005cecf",
+          "prov_c54fee71ede561dbe9964b904817d664",
+          "prov_c6f8b3812e3b03419ae244cef0abb77e",
+          "prov_0f8fc0e7521a6e83062f7dd6f8d09ae2",
+          "prov_658d7a4340f64ef891e6f3acf7198df4"
+        ],
+        "retrieved_source": true,
+        "retrieved_target": false,
+        "published": [],
+        "rejected": 0,
+        "correct": true,
+        "errors": [],
+        "citation_ok": null,
+        "coverage_complete": false,
+        "validated": false,
+        "verdicts": [],
+        "scoring_version": 2
+      }
+    }
+  ],
+  "rescore_note": "'score' is what the run recorded (historical, scorer at run time). 'rescored' is the current scorer, version 2 (app/services/evaluation.py)."
+}

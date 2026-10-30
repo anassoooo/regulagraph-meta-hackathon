@@ -8,12 +8,16 @@ without re-validation (attribute assignment, list append), so finalization:
 2. re-validates each source extraction the same way (catching mutated pages);
 3. applies the fail-closed publication rules (no "confirmed" relationships);
 4. verifies every evidence quote against its source page text;
-5. returns an immutable ``FinalizedReport`` whose ``content_digest`` binds the
+5. verifies every provision against its source spans, and that overlapping
+   provisions are recorded as nested (R1);
+6. verifies that relationship evidence lies inside the source/target
+   provisions, and any lexical match names the target (R2);
+7. returns an immutable ``FinalizedReport`` whose ``content_digest`` binds the
    complete canonical snapshot, findings included.
 
-This proves structural integrity and that quoted passages exist in the
-sources. It does not prove that evidence semantically supports any inference
-or relationship, or that it lies within the provisions a relationship names.
+This proves structural integrity, that quoted passages exist in the sources
+and where they sit. It does not prove that evidence semantically supports any
+inference or relationship.
 """
 
 from collections.abc import Mapping
@@ -24,6 +28,8 @@ from pydantic import ValidationError
 from app.core.errors import PublicationBlockedError, ReportValidationError
 from app.models.schemas import ExtractedDocument, FinalizedReport, InvestigationReport, assert_publishable
 from app.services.evidence import verify_report_evidence
+from app.services.provisions import verify_provision_set
+from app.services.relationships import verify_relationship_support
 
 M = TypeVar("M", InvestigationReport, ExtractedDocument)
 
@@ -46,6 +52,8 @@ def finalize_report(report: InvestigationReport, sources: Mapping[str, Extracted
         raise PublicationBlockedError(str(exc)) from exc
 
     verify_report_evidence(snapshot, verified_sources)
+    verify_provision_set(snapshot.provisions, verified_sources)
+    verify_relationship_support(snapshot, verified_sources)
 
     return FinalizedReport(
         report_id=snapshot.report_id,

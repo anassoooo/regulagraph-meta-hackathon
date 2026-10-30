@@ -10,6 +10,7 @@ from app.models.schemas import (
     Inference,
     InvestigationReport,
     Provision,
+    ProvisionSegment,
     RegulatoryRelationship,
 )
 
@@ -22,9 +23,20 @@ def _evidence(quote: str = "Article 2 est abroge", start: int = 10) -> Evidence:
     return Evidence(document_id=DOC_ID, page_number=1, char_start=start, char_end=start + len(quote), quote=quote)
 
 
+def _provision(label: str, segments: list[tuple[int, int, int]], text: str, **extra) -> Provision:
+    return Provision(
+        document_id=DOC_ID,
+        kind="article",
+        label=label,
+        segments=[ProvisionSegment(page_number=p, char_start=s, char_end=e) for p, s, e in segments],
+        text=text,
+        **extra,
+    )
+
+
 def _provisions() -> tuple[Provision, Provision]:
-    a = Provision(document_id=DOC_ID, label="Article 1", text="Texte 1", page_start=1, page_end=1)
-    b = Provision(document_id=DOC_ID, label="Article 2", text="Texte 2", page_start=1, page_end=2)
+    a = _provision("Article 1", [(1, 0, 7)], "Texte 1")
+    b = _provision("Article 2", [(1, 7, 12), (2, 0, 1)], "Texte\n2")  # two pages, separator between
     return a, b
 
 
@@ -73,9 +85,33 @@ def test_invalid_evidence(kwargs: dict) -> None:
 
 # Provision ----------------------------------------------------------------
 
-def test_provision_page_range_validated() -> None:
-    with pytest.raises(ValidationError, match="page_end"):
-        Provision(document_id=DOC_ID, label="Article 1", text="x", page_start=3, page_end=2)
+def test_provision_page_range_derived_from_segments() -> None:
+    _, b = _provisions()
+    assert (b.page_start, b.page_end) == (1, 2)
+
+
+@pytest.mark.parametrize(
+    "segments, text, match",
+    [
+        ([(3, 0, 1), (2, 0, 1)], "x\ny", "consecutive"),  # out of order
+        ([(1, 0, 1), (3, 0, 1)], "x\ny", "consecutive"),  # gap between pages
+        ([(1, 0, 1), (1, 2, 3)], "x\ny", "consecutive"),  # two segments on one page
+        ([(1, 0, 3)], "ab", "text length"),  # text does not fit the span
+        ([(1, 0, 2), (2, 0, 1)], "abc", "text length"),  # separator missing
+        ([(1, 2, 2)], "", None),  # empty segment
+    ],
+)
+def test_provision_segments_validated(segments, text, match) -> None:
+    with pytest.raises(ValidationError, match=match):
+        _provision("Article 1", segments, text)
+
+
+def test_provision_identity_is_the_span_not_the_label() -> None:
+    a = _provision("Article 5", [(1, 0, 3)], "abc")
+    same_label_other_span = _provision("Article 5", [(1, 10, 13)], "abc")
+    relabelled = _provision("Art. 5", [(1, 0, 3)], "abc")
+    assert a.provision_id != same_label_other_span.provision_id
+    assert a.provision_id == relabelled.provision_id
 
 
 # Inference ----------------------------------------------------------------
@@ -103,17 +139,37 @@ def test_relationship_basis_rules() -> None:
         "relation_type": "repeals",
         "evidence_ids": ["ev_1"],
     }
-    assert RegulatoryRelationship(basis="extracted", **base).relationship_id.startswith("rel_")
+    lexical = {"lexical_match": {"evidence_id": "ev_1", "match_start": 0, "match_end": 9}}
+    assert RegulatoryRelationship(basis="extracted", **base, **lexical).relationship_id.startswith("rel_")
+    with pytest.raises(ValidationError, match="lexical_match"):
+        RegulatoryRelationship(basis="extracted", **base)
+    with pytest.raises(ValidationError, match="lexical_match must cite"):
+        RegulatoryRelationship(
+            basis="extracted", **base, lexical_match={"evidence_id": "ev_2", "match_start": 0, "match_end": 9}
+        )
     with pytest.raises(ValidationError, match="inference_id"):
         RegulatoryRelationship(basis="inferred", **base)
     with pytest.raises(ValidationError, match="must not reference"):
-        RegulatoryRelationship(basis="extracted", inference_id="inf_1", **base)
+        RegulatoryRelationship(basis="extracted", inference_id="inf_1", **base, **lexical)
     with pytest.raises(ValidationError, match="itself"):
-        RegulatoryRelationship(basis="extracted", **{**base, "target_provision_id": b.provision_id})
+        RegulatoryRelationship(basis="extracted", **{**base, "target_provision_id": b.provision_id}, **lexical)
     with pytest.raises(ValidationError):
-        RegulatoryRelationship(basis="extracted", **{**base, "evidence_ids": []})
+        RegulatoryRelationship(basis="extracted", **{**base, "evidence_ids": []}, **lexical)
     with pytest.raises(ValidationError):
-        RegulatoryRelationship(basis="extracted", **{**base, "relation_type": "vibes"})
+        RegulatoryRelationship(basis="extracted", **{**base, "relation_type": "vibes"}, **lexical)
+
+
+def test_relationship_target_is_exactly_one_of_provision_or_document() -> None:
+    a, b = _provisions()
+    base = {"source_provision_id": b.provision_id, "relation_type": "repeals", "basis": "inferred",
+            "inference_id": "inf_1", "evidence_ids": ["ev_1"]}
+    to_doc = RegulatoryRelationship(**base, target_document_id=ids.document_id("b" * 64))
+    to_prov = RegulatoryRelationship(**base, target_provision_id=a.provision_id)
+    assert to_doc.relationship_id != to_prov.relationship_id
+    with pytest.raises(ValidationError, match="exactly one"):
+        RegulatoryRelationship(**base)
+    with pytest.raises(ValidationError, match="exactly one"):
+        RegulatoryRelationship(**base, target_provision_id=a.provision_id, target_document_id=ids.document_id("b" * 64))
 
 
 # InvestigationReport ------------------------------------------------------

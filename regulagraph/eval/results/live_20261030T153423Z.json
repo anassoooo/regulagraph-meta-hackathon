@@ -1,0 +1,361 @@
+{
+  "kind": "live_eval",
+  "summary": {
+    "source": "live Meta Model API (not a replay)",
+    "max_completion_tokens": 2048,
+    "reasoning_effort": "low",
+    "max_prompt_chars": 24000,
+    "cases_requested": [
+      "E10"
+    ],
+    "api_calls": 1,
+    "retrieval_failures": [],
+    "correct": 1,
+    "validated": 1,
+    "tokens": {
+      "prompt_tokens": 4511,
+      "completion_tokens": 2048,
+      "total_tokens": 6559,
+      "reasoning_tokens": 2046
+    },
+    "approx_cost_usd": 0.01434,
+    "model": "muse-spark-1.3"
+  },
+  "results": [
+    {
+      "case_id": "E10",
+      "question": "L'article 14 de la circulaire n°2026-10 modifie-t-il l'article 11 de la circulaire n°2018-16 ?",
+      "preflight": "ok",
+      "required": [
+        "source bct-2026-10-fr article 14",
+        "target bct-2018-16-fr article 11"
+      ],
+      "api_called": true,
+      "prompt_chars": 17860,
+      "approx_cost_usd": 0.01434,
+      "proposals_received": 0,
+      "score": {
+        "case_id": "E10",
+        "phenomenon": "provision_level_overreach",
+        "polarity": "negative",
+        "model_outcome": "truncated",
+        "retrieved_provision_ids": [
+          "prov_d10d2d0ac395e8a2056c0eb3def8c8a5",
+          "prov_29647def4a6b58ce8ab203f4dd6d0274",
+          "prov_980bb0eebce9d850b946ae8e5c2c25b0",
+          "prov_c6a23c9209200171ba825f4607c238f3",
+          "prov_df72561d3bdfcaaa38e3189560ce2633",
+          "prov_fffc1ef369c34b9a756766c4e3622109",
+          "prov_65e7a863eb9613c8d824234a5a1689eb",
+          "prov_d9364002713d78b3d14d4dd481dbfeea"
+        ],
+        "retrieved_source": true,
+        "retrieved_target": true,
+        "published": [],
+        "rejected": 0,
+        "correct": true,
+        "errors": [
+          "model_outcome:truncated"
+        ],
+        "citation_ok": null,
+        "coverage_complete": true,
+        "validated": true
+      },
+      "model_call": {
+        "outcome": "truncated",
+        "model_id": "muse-spark-1.3",
+        "response_id": "chatcmpl-01a18d72-a589-76dd-9661-0d652334a25b",
+        "http_status": 200,
+        "finish_reason": "length",
+        "refusal": null,
+        "usage": {
+          "prompt_tokens": 4511,
+          "completion_tokens": 2048,
+          "total_tokens": 6559,
+          "completion_tokens_details": {
+            "reasoning_tokens": 2046
+          }
+        },
+        "latency_ms": 9594.7,
+        "error": null,
+        "max_completion_tokens": 2048,
+        "reasoning_effort": "low",
+        "raw_text": null
+      },
+      "rejected": [],
+      "content_digest": "0f0bf6114eaed1787d187c2b389a853320f9a783c76bbcb76a15ec7f57a8c5f6",
+      "report": {
+        "document_ids": [
+          "doc_fe31431614e7eeee7b163583c02af0e3",
+          "doc_3403306ac786e03ea0bad99ebc126629"
+        ],
+        "evidence": [],
+        "generated_at": "2026-10-30T15:34:23.236719Z",
+        "inferences": [],
+        "provisions": [
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "preamble",
+            "label": "(préambule)",
+            "number": null,
+            "parent_provision_id": null,
+            "provision_id": "prov_d10d2d0ac395e8a2056c0eb3def8c8a5",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 1404,
+                "char_start": 0,
+                "page_number": 1
+              },
+              {
+                "char_end": 1271,
+                "char_start": 0,
+                "page_number": 2
+              }
+            ],
+            "text": "   \n \n 1  \n \n \n                                                                                   Tunis, le 25 septembre 2026. \n \n \n \n \nCirculaire de la Banque Centrale de Tunisie n°2026-10 \n \nObjet : Règles régissant l’activité et le fonctionnement des établissements de \npaiement. \nLe Gouverneur de la Banque Centrale de Tunisie, \nVu la loi organique n°2004 -63 du 27 juillet 2004 , relative à la protection des \ndonnées à caractère personnel,  \nVu la loi organique n°2015 -26 du 7 août 2015, relative à la lutte contre le \nterrorisme et à la répression du blanchiment d’argent telle que modifiée et \ncomplétée par la loi organique n°2019-9 du 23 janvier 2019,  \nVu la loi n°2000 -83 du 9 ao ût 2000, relative aux échanges et au commerce \nélectroniques, \nVu la loi n° 2005-51 du 27 juin 2005, relative au transfert électronique de fonds,  \nVu la loi n°2016 -35 du 25 avril 2016 , portant fixation du statut de la Banque \nCentrale de Tunisie notamment son article 8,  \nVu la loi n°2016-48 du 11 juillet 2016, relative aux banques et aux établissements \nfinanciers notamment ses articles 20 et 21,  \nVu le décret-loi n°2023-17 du 11 mars 2023, relatif à la cybersécurité, \nVu la circulaire aux établissements de crédit n° 2006-1 du 28 mars 2006, relative \nà la réglementation des conditions des opérations d’externalisation, \nVu la circulaire aux établissements de crédit n°2006-19 du 28 novembre 2006 , \n   \n \n 2  \n \nrelative au contrôle interne dans les établissements de crédit,  \nVu la circulaire aux banques et aux établissements financiers n°2017 -6 du 31 \njuillet 2017, relative au reporting comptable, prudentiel et statistique à la Banque \nCentrale de Tunisie,   \nVu la circulaire aux banques et aux établissements financiers n°2017 -08 du 19 \nseptembre 2017, relative aux dispositif et règles de contrôle interne en matière \nde lutte contre le blanchiment d’argent, le financement du terrorisme et le \nfinancement de la prolifération des armes de destruction massive, telle que \nmodifiée et comp létée par les textes subséquents et notamment la circulaire \nn°2025-17 du 22 décembre 2025,  \nVu la circulaire de la Banque Centrale de Tunisie n°2018 -16 du 31 décembre \n2018, relative aux règles régissant l’activité et le fonctionnement des \nétablissements de paiement, \nVu la circulaire de la Banque Centrale de Tunisie n°2020 -11 du 18 mai 2020, \nrelative aux  conditions de fourniture des services de paiement mobile \ndomestique, \nVu l’avis n° 2026-10 du Comité de Contrôle de la Conformité en date du 25 \nseptembre 2026 , tel que prévu par l’article 42 de la loi n°2016 -35 du 25 avril \n2016 portant fixation du statut de la Banque Centrale de Tunisie. \nDécide : \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "article",
+            "label": "Article 3",
+            "number": "3",
+            "parent_provision_id": null,
+            "provision_id": "prov_29647def4a6b58ce8ab203f4dd6d0274",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 630,
+                "char_start": 128,
+                "page_number": 4
+              }
+            ],
+            "text": "Article 3 : Les opérations de transfert de fonds effectuées par remise d’espèces, \nmentionnées au quatrième tiret de l’article 2 de la présente circulaire sont \nplafonnées à un montant de trois mille (3 000) dinars par opération.   \nLes opérations de mise à disposition de fonds en provenance de l’étranger, visées \nau niveau de l’article 2 de la présente circulaire, sont plafonnées à la contre -\nvaleur de vingt mille (20 000) dinars par opération.  \nCes opérations doivent être dûment justifiées.  \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "article",
+            "label": "Article 11",
+            "number": "11",
+            "parent_provision_id": null,
+            "provision_id": "prov_980bb0eebce9d850b946ae8e5c2c25b0",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 566,
+                "char_start": 202,
+                "page_number": 9
+              }
+            ],
+            "text": "Article 11 : Les établissements de paiement sont soumis aux dispositions de la \ncirculaire de la Banque Centrale de Tunisie n°2006 -19 du 28 novembre 2006 \nrelative au contrôle interne. A cet effet, ils doivent mettre en place un dispositif \nde contrôle interne adapté à la nature, à la taille, à la complexité de leurs activités \net aux risques qui y sont liés. \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "article",
+            "label": "Article 12",
+            "number": "12",
+            "parent_provision_id": null,
+            "provision_id": "prov_c6a23c9209200171ba825f4607c238f3",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 1540,
+                "char_start": 566,
+                "page_number": 9
+              },
+              {
+                "char_end": 256,
+                "char_start": 0,
+                "page_number": 10
+              }
+            ],
+            "text": "Article 12 : Les établissements de paiement doivent se doter : \n- D’un système d’information sécurisé et évolutif  en adéquation avec la \nnature et la complexité des opérations de paiement. \n- D’un dispositif de sécurité des opérations qui permet d’assurer la \ntraçabilité des opérations de paiement exécutés et des fonds collectés et de \ndisposer de la position de l’ensemble des comptes de paiement ouverts sur \nleurs livres. \n- D’un système d’enregistrement et de traitement des opérations de \npaiement en temps réel aussi bien au niveau de l’établissement lui-même \nqu’au niveau de son réseau d’agents de paiement. \n- D’un dispositif interne approprié pour la lutte contre le blanchiment \nd’argent, le financement du terrorisme et la prolifération  des armes de \ndestruction massive, couvrant l’ensemble de leurs activités. \n- D’un dispositif formalisé de traitement des réclamations ainsi que de \nprotection des données à caractère personnel de leurs clients, conforme \n   \n \n 10  \n \naux dispositions légales et réglementaires en vigueur.  \n- D’un dispositif adéquat de gestion des risques y compris  les risques \nopérationnels et le risque cybernétique. \n- D’un plan de continuité d’activité formalisé, testé et mis à jour. \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "article",
+            "label": "Article 14",
+            "number": "14",
+            "parent_provision_id": null,
+            "provision_id": "prov_df72561d3bdfcaaa38e3189560ce2633",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 1830,
+                "char_start": 109,
+                "page_number": 11
+              },
+              {
+                "char_end": 1849,
+                "char_start": 0,
+                "page_number": 12
+              },
+              {
+                "char_end": 14,
+                "char_start": 0,
+                "page_number": 13
+              }
+            ],
+            "text": "Article 14: Les établissement de paiement sont soumis aux dispositions de la \ncirculaire n°2017 -08 du 19 septembre 2017, telle que modifiée par les textes \nsubséquents. A cet effet, ils doivent mettre en place un  dispositif de lutte contre \nle blanchiment d’argent, le financement du terrorisme et la prolifération des \narmes de destruction massive  conformément à l’article 12 de la présente \ncirculaire. \nCe dispositif  doit être fondé sur une approche basée sur les risques  et \ncomprendre notamment  des politiques, des procédures, une organisation, des \nmoyens humains et techniques et des mesures de contrôle interne permettant \nd'assurer l'identification, l'évaluation, la compréhension, la maîtrise, le suivi et \nl’atténuation des risques de blanchiment d'argent, de financement du terrorisme \net de financement de la prolifération auxquels l'établissement est exposé.   Dans \nce cadre, les établissements doivent : \n− S’assurer que le dispositif susvisé  couvre l'ensemble des activités, \nproduits, services, canaux de distribution, catégories de clientèle, zones \ngéographiques ainsi que les technologies utilisées, y compris les activités \nexercées par l'intermédiaire des agents de paiement, ou par tout autre \npartenaire ou tiers auquel l'établissement recourt dans le cadre de ses \nactivités. \n− Effectuer une évaluatio n des risques conformément à l’article 4 de la \ncirculaire n°2017-08. Cette évaluation doit être régulièrement actualisée \net à l'occasion de tout changement significatif affectant son activité, son \norganisation, ses produits, ses services, son réseau , ses canaux de \ndistribution ou les technologies utilisées. \n− Intégrer dans l’évaluation susvisée les risques émergents résultant \n   \n \n 12  \n \nnotamment du recours aux nouvelles technologies, aux processus d'entrée \nen relation ou d'enrôlement à distance, aux solutions innovantes de \npaiement et  de transfert de fonds  ainsi qu’ aux opérations \nd’externalisation. \n− Prévoir des mesures de vigilance à l'égard de la clientèle proportionnées \nau niveau de risque identifié, incluant, selon le cas, des mesures de \nvigilance simplifiée, ou renforcée, sur la base des résultats des évaluations \nnationales des risques et de l’ autoévaluation des risques réalisé e par \nl’établissement ; \nLe respect des plafonds visés par l’article 3 de la présente circulaire  ne \ndispense en aucun cas l'établissement de ses obligations de vigilance \nprévues par la législation et la réglementation en vigueur en matière de \nlutte contre le blanchiment d'argent, le financement du terrorisme et le \nfinancement de la prolifération des armes de destruction massive ;  \n− Assurer une formation continue et adaptée des membres du personnel, des \nagents de paiement et des personnes concernées sur les risques de \nblanchiment d'argent, de financement du terrorisme et de financement de \nla prolifération  des armes de destruction massive  ainsi que sur les \nobligations qui leur incombent en la matière. \nLes établissements de paiement sont tenus de documenter, de justifier et de \nconserver l'ensemble des éléments relatifs à l'évaluation des risques, aux \nmesures de vigilance mises en œuvre, aux contrôles effectués ainsi qu'aux \ndécisions prises dans le cadre de l'application de l'approche basée sur les risques. \nCes informations et documents doivent être conservés pendant les délais prévus \npar la législation en vigueur et tenus à la disposition de la Banque Centrale de \nTunisie ainsi que de toute autre autorité compétente habilitée, et leur être \ncommuniqués sans délai à leur demande. \n   \n \n 13  \n \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "article",
+            "label": "Article 11",
+            "number": "11",
+            "parent_provision_id": "prov_27bfbbc2c773d29b199ca449986b95ae",
+            "provision_id": "prov_fffc1ef369c34b9a756766c4e3622109",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 2235,
+                "char_start": 2001,
+                "page_number": 39
+              },
+              {
+                "char_end": 1285,
+                "char_start": 0,
+                "page_number": 40
+              },
+              {
+                "char_end": 1136,
+                "char_start": 0,
+                "page_number": 41
+              },
+              {
+                "char_end": 880,
+                "char_start": 0,
+                "page_number": 42
+              },
+              {
+                "char_end": 14,
+                "char_start": 0,
+                "page_number": 43
+              }
+            ],
+            "text": "Article 11 : Préalablement à l’ouverture de toute agence, l’établissement de paiement doit \nsoumettre le dispositif de sécurité à un audit externe. Une copie du rapport d’audit doit \nêtre adressée à la Banque Centrale de Tunisie. \n \n \n   \n \n 40  \n \n \n \nMODELE DE DECLARATION N°1 :  \nOUVERTURE D’UNE AGENCE  \n \nSite d’implantation : \nGouvernorat :……………Délégation :………………………………      Commune :……………...…………..……………  \n  \nCoordonnées :  \nAdresse :…………………………………………………………..…………………..………………………………………………. \nCode postal :………………………………….………………………………...……....……………………………………………. \nE-mail :………………………………………………………………………...……………………………………………………...... \nTéléphone :…………………………………………….  \nEffectif :……………………………………………………………………………………………………………………………….. \nPremier responsable :  \nNom :……………………………………………………………………………………………………………………………………. \nPrénom :…….………………….………….….………..……………..…………………………………………………………………..  \nNiveau de formation :………………………………  \nDiplôme universitaire :………….………………… \nAnnée d’obtention du diplôme universitaire :……………………...…………………………………………………… \nExpérience professionnelle :…………………………………….……………………………….………  \nAménagement du local :  \nSuperficie :………..  \nForme d’exploitation du local :    En location                                    En propriété  \nOpérations envisagées \n……………………………………………………………………………………………………………………………………… \nPréciser si l’agence exercera l’activité de change manuel       oui                non \nHoraire de travail : ……………………...……………………………………………………………… \n \nCachet et signature autorisée \n(Nom et fonction du \nsignataire) \n \n \n \n   \n \n 41  \n \n \nMODELE DE DECLARATION N°2 :  \nFERMETURE D’UNE AGENCE  \n \nDate d’ouverture : ……………………...………………………………………………………………………………………….. \nIdentifiant BCT (code de l’agence) : ……………………...……………………………………………………………….. \nSite d’implantation : ……………………...………………………………………………………………………………………. \nGouvernorat :   ……………………                      Délégation :    ……………………… Commune : ………………….. \nDerniers indicateurs relatifs à l’activité de l’agence objet de déclaration de fermeture :  \nNombre de comptes (par niveau) : ……………………………………………………………………………. \nNombre de clients : ……………………………………………………………………………………………………. \nMotifs de la fermeture :  \n………….……………………………………………………………………………………………………………………………….. \n………….……………………………………………………………………………………………………………………………….. \n………….………………………………………………………………………………………………………………………………… \nProcédures mises en place pour préserver les intérêts de la clientèle de l’agence objet de \nfermeture  \n………….……………………………………………………………………………………………………………………………….. \n………….……………………………………………………………………………………………………………………………….. \n………….………………………………………………………………………………………………………………………………… \n \n \nCachet et signature autorisée \n(nom et fonction du signataire) \n   \n \n 42  \n \nMODELE DE DECLARATION N°3 :  \nTRANSFERT D’UNE AGENCE  \n \nDate d’ouverture : ……………………...………………………………………………………………………………………… \nIdentifiant BCT (code de l’agence) : ……………………...……………………………………………………………… \nSite d’implantation : ……………………...………………………………………………………………………………….. \nGouvernorat :       …………………..           Délégation :    ……………………      Commune : …………………….. \nDerniers indicateurs relatifs à l’activité de l’agence objet de déclaration de transfert :  \nNombre de comptes (par niveau) : …………………………………………………………………………. \nNombre de clients : ………………………………………………………………………………………………… \nMotifs de transfert :  \n………….……………………………………………………………………………………………………………………………….. \n………….……………………………………………………………………………………………………………………………….. \n………….………………………………………………………………………………………………………………………………… \n \n \n \nCachet et signature autorisée \n(nom et fonction du signataire) \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n   \n \n 43  \n \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "annex",
+            "label": "Annexe 5 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre",
+            "number": "5",
+            "parent_provision_id": null,
+            "provision_id": "prov_27bfbbc2c773d29b199ca449986b95ae",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 2284,
+                "char_start": 18,
+                "page_number": 38
+              },
+              {
+                "char_end": 2235,
+                "char_start": 0,
+                "page_number": 39
+              },
+              {
+                "char_end": 1285,
+                "char_start": 0,
+                "page_number": 40
+              },
+              {
+                "char_end": 1136,
+                "char_start": 0,
+                "page_number": 41
+              },
+              {
+                "char_end": 880,
+                "char_start": 0,
+                "page_number": 42
+              },
+              {
+                "char_end": 14,
+                "char_start": 0,
+                "page_number": 43
+              }
+            ],
+            "text": "Annexe 5 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre \n2026 \nCAHIER DES CHARGES FIXANT LES CONDITIONS D’OUVERTURE, DE \nFERMETURE ET DE TRANSFERT PROVISOIRE OU DEFINITIF DES \nAGENCES PAR LES ETABLISSEMENTS DE PAIEMENT \n \n Article Premier : Les établissements de paiement sont tenus de déclarer à la Banque \nCentrale de Tunisie toute opération d’ouverture, de fermeture provisoire ou définitive ou \nde transfert de toute agence à titre provisoire ou définitif quinze (15) jours ouvrables au \nmoins à l’avance.  \nLa déclaration de ces opérations se fait conformément aux modèles de déclarations 1 et 2 \njoints à la présente annexe. \nArticle 2 : Avant toute fermeture provisoire ou définitive ou toute opération de transfert \ndéfinitif ou provisoire de l’agence, les établissements de paiement sont tenus :  \n- d’instituer des mesures organisationnelles utiles en vue de prendre en charge les \nfonds reçus des clients  à l’agence et de les traiter conformément à un manuel de \nprocédures élaboré à cet effet par l’établissement de paiement.  \n- d’informer leurs clients de manière individuelle par tout moyen laissant une trace \nécrite et sur leur site Web et ce, quarante-cinq (45) jours au moins avant la date de \nfermeture ou de transfert.  \nTITRE premier : CONDITIONS D’IMPLANTATION ET D’AMENAGEMENT \nArticle 3 : Le local abritant l’agence doit être identifiable par le public et implanté dans \nun site facilement accessible. \nArticle 4 : Sans préjudice  des conditions requises en vertu de la législation et \nréglementation en vigueur en matière d’espaces recevant le public, le local doit être \nimplanté dans un lieu approprié loin des constructions et des équipements susceptibles \nde présenter une source de risque (dépôts de carburants ou de gaz….). \nArticle 5 : La superficie de l’agence doit être adaptée au volume de l’activité et ne doit, en \naucun cas, être inférieure à vingt  (20) mètres carrés. La forme du local doit être \nfonctionnelle. \nArticle 6 : Le local abritant l’agence doit disposer :  \n- d’un espace d’accueil pour la clientèle et des guichets pour offrir des services de \npaiement au public visibles dès l’accès au local ;  \n- d’aménagements appropriés garantissant l’accessibilité et la circulation aisée des \n   \n \n 39  \n \npersonnes à besoins spécifiques , ainsi qu’un accès facile aux services offerts par \nl’agence ; \n- d’un espace indépendant pour le premier responsable de l’agence.  \nLa caisse doit être située loin de l’accès de la clientèle et les fonds qui y sont déposés \ndoivent être situés à l’abri des regards du public.  \nTITRE II : CONDITIONS DE SECURITE \nArticle 7 : Les établissements de paiement doivent prendre toutes les mesures de sécurité \nafférentes à la protection des personnes et du local de l’agence. Ils doivent, à ce titre, \nveiller à ce que le local soit relié en permanence au poste de police par une ligne \ntéléphonique spécialisée.  \nArticle 8 : Les établissements de paiement doivent disposer d’un manuel de procédures \npour la sécurité des agences décrivant notamment :  \n- les consignes à appliquer pour alerter la police en cas d’inquiétudes justifiées ou \nen cas d’agression ;  \n- les conditions d’ouverture et de fermeture des portes ;  \n- les conditions de vérification du bon fonctionnement des installations de sécurité, \ndes accès et du dispositif d’alarme ;  \nLe manuel de procédures doit être mis à la disposition du personnel de l’agence. \nArticle 9 : Le premier responsable de l’agence doit posséder les qualifications et les \ncompétences professionnelles nécessaires à la gestion efficace d’une agence.  \nL’établissement de paiement veille à ce que le personnel de ses agences reçoive une \nformation adéquate et continue notamment en matière de lutte contre le blanchiment \nd’argent et le financement du terrorisme et de la prolifération  des armes de destruction \nmassive. \nL’établissement de paiement doit au moins affecter deux personnes par agence, y compris \nle premier responsable. \nLe personnel doit être initié à l’utilisation des moyens de sécurité et à leur fonctionnement \nen cas de nécessité. \nArticle 10 : L’agence doit être équipée d’un coffre-fort conforme aux normes tunisiennes \net qui doit être dans tous les cas, relié au système de sécurité. \nArticle 11 : Préalablement à l’ouverture de toute agence, l’établissement de paiement doit \nsoumettre le dispositif de sécurité à un audit externe. Une copie du rapport d’audit doit \nêtre adressée à la Banque Centrale de Tunisie. \n \n \n   \n \n 40  \n \n \n \nMODELE DE DECLARATION N°1 :  \nOUVERTURE D’UNE AGENCE  \n \nSite d’implantation : \nGouvernorat :……………Délégation :………………………………      Commune :……………...…………..……………  \n  \nCoordonnées :  \nAdresse :…………………………………………………………..…………………..………………………………………………. \nCode postal :………………………………….………………………………...……....……………………………………………. \nE-mail :………………………………………………………………………...……………………………………………………...... \nTéléphone :…………………………………………….  \nEffectif :……………………………………………………………………………………………………………………………….. \nPremier responsable :  \nNom :……………………………………………………………………………………………………………………………………. \nPrénom :…….………………….………….….………..……………..…………………………………………………………………..  \nNiveau de formation :………………………………  \nDiplôme universitaire :………….………………… \nAnnée d’obtention du diplôme universitaire :……………………...…………………………………………………… \nExpérience professionnelle :…………………………………….……………………………….………  \nAménagement du local :  \nSuperficie :………..  \nForme d’exploitation du local :    En location                                    En propriété  \nOpérations envisagées \n……………………………………………………………………………………………………………………………………… \nPréciser si l’agence exercera l’activité de change manuel       oui                non \nHoraire de travail : ……………………...……………………………………………………………… \n \nCachet et signature autorisée \n(Nom et fonction du \nsignataire) \n \n \n \n   \n \n 41  \n \n \nMODELE DE DECLARATION N°2 :  \nFERMETURE D’UNE AGENCE  \n \nDate d’ouverture : ……………………...………………………………………………………………………………………….. \nIdentifiant BCT (code de l’agence) : ……………………...……………………………………………………………….. \nSite d’implantation : ……………………...………………………………………………………………………………………. \nGouvernorat :   ……………………                      Délégation :    ……………………… Commune : ………………….. \nDerniers indicateurs relatifs à l’activité de l’agence objet de déclaration de fermeture :  \nNombre de comptes (par niveau) : ……………………………………………………………………………. \nNombre de clients : ……………………………………………………………………………………………………. \nMotifs de la fermeture :  \n………….……………………………………………………………………………………………………………………………….. \n………….……………………………………………………………………………………………………………………………….. \n………….………………………………………………………………………………………………………………………………… \nProcédures mises en place pour préserver les intérêts de la clientèle de l’agence objet de \nfermeture  \n………….……………………………………………………………………………………………………………………………….. \n………….……………………………………………………………………………………………………………………………….. \n………….………………………………………………………………………………………………………………………………… \n \n \nCachet et signature autorisée \n(nom et fonction du signataire) \n   \n \n 42  \n \nMODELE DE DECLARATION N°3 :  \nTRANSFERT D’UNE AGENCE  \n \nDate d’ouverture : ……………………...………………………………………………………………………………………… \nIdentifiant BCT (code de l’agence) : ……………………...……………………………………………………………… \nSite d’implantation : ……………………...………………………………………………………………………………….. \nGouvernorat :       …………………..           Délégation :    ……………………      Commune : …………………….. \nDerniers indicateurs relatifs à l’activité de l’agence objet de déclaration de transfert :  \nNombre de comptes (par niveau) : …………………………………………………………………………. \nNombre de clients : ………………………………………………………………………………………………… \nMotifs de transfert :  \n………….……………………………………………………………………………………………………………………………….. \n………….……………………………………………………………………………………………………………………………….. \n………….………………………………………………………………………………………………………………………………… \n \n \n \nCachet et signature autorisée \n(nom et fonction du signataire) \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n   \n \n 43  \n \n"
+          },
+          {
+            "document_id": "doc_3403306ac786e03ea0bad99ebc126629",
+            "kind": "article",
+            "label": "Article 11",
+            "number": "11",
+            "parent_provision_id": null,
+            "provision_id": "prov_65e7a863eb9613c8d824234a5a1689eb",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 2227,
+                "char_start": 1755,
+                "page_number": 6
+              },
+              {
+                "char_end": 248,
+                "char_start": 0,
+                "page_number": 7
+              }
+            ],
+            "text": "Article 11 : Les établissements de paiement sont soumis aux dispositions de la circulaire de la \nBanque Centrale de Tunisie n° 2017-08 du 19 septembre 2017 relative aux règles de contrôle \ninterne pour la gestion du risque de blanchiment d’argent et de financement du terrorisme. Ils \ndoivent, à ce titre, adapter leurs dispositifs de contrôle interne à la nature, à la complexité, à la \ndiversité et au volume de leurs activité et aux risques auxquels ils sont exposés.  \n7 \n \nSans préjudice des dispositions de l’alinéa premier du présent article, les établissements de \npaiement sont tenus d’appliquer les règles d’identification des clients prévues par les \ndispositions de l’article 14 de la présente circulaire. \n \n"
+          },
+          {
+            "document_id": "doc_3403306ac786e03ea0bad99ebc126629",
+            "kind": "article",
+            "label": "Article 14",
+            "number": "14",
+            "parent_provision_id": null,
+            "provision_id": "prov_d9364002713d78b3d14d4dd481dbfeea",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 1635,
+                "char_start": 740,
+                "page_number": 7
+              },
+              {
+                "char_end": 1452,
+                "char_start": 0,
+                "page_number": 8
+              }
+            ],
+            "text": "Article 14 : Les établissements de paiement sont  autorisés à ouvrir des comptes de paiement \nde trois niveaux « compte de niveau 1 », « compte de niveau 2 » et « compte de niveau 3 ». \nA chaque niveau de compte de paiement doit correspondre : \n des limites par plafond de solde et par montant global des sorties de fonds à partir du \ncompte de paiement par jour. \n des règles d’identification de la clientèle telles que définies dans la présente circulaire. \nLes limites et les règles susvisées sont fixées comme suit :  \n- Compte de paiement de niveau 1: Le solde de ce compte est plafonné à 500 dinars sans \ntoutefois que le montant global des sorties de fonds à partir du compte de paiement ne dépasse \n250 dinars par jour. L’ouverture dudit compte nécessite que le client dispose d’un numéro \nnational de téléphone mobi le et d’une copie d’un document d’identité officiel dudit client ,  \n8 \nvalide et portant sa photographie, délivré par une autorité tunisienne habilitée ou une autorité \nétrangère reconnue. \n- Compte de paiement de niveau 2 :  Le solde de ce compte est plafonné à 1000 dinars sans \ntoutefois que le montant global des sorties de fonds à partir du compte de paiement ne dépasse \n500 dinars par jour. L’ouverture dudit compte nécessite l’établissement d’une fiche \nd’identification allégée conformément à l’annexe 1 de la présente circulaire  comportant les \ninformations d’identification du client appuyé es par tout document d’identité officiel, valide \net portant la photographie du client , délivré par une autorité tunisienne habilitée ou u ne \nautorité étrangère reconnue dont une copie est jointe à ladite fiche. \n- Compte de paiement de niveau 3 : Le solde de ce compte est plafonné à 5000 dinars sans \ntoutefois que le montant global des sorties de fonds à partir du compte de paiement ne dépasse  \n1000 dinars par jour . L’ouverture d udit compte requiert la présence physique du client et \nnécessite l’établissement d’une fiche d’identification détaillée conformément à l’annexe 2 de \nla présente circulaire , comportant toutes les informations pertinentes pour l’identification du \nclient appuyé es par tout document d’identité officiel , valide et portant la photographie du \nclient, délivré par une  autorité tunisienne habilitée ou une autorité étrangère reconnue dont \nune copie est jointe à ladite fiche. \n"
+          }
+        ],
+        "question": "L'article 14 de la circulaire n°2026-10 modifie-t-il l'article 11 de la circulaire n°2018-16 ?",
+        "relationships": [],
+        "report_id": "rep_b88888ae25b21230f173d5c644e1de33"
+      },
+      "rescored": {
+        "case_id": "E10",
+        "phenomenon": "provision_level_overreach",
+        "polarity": "negative",
+        "model_outcome": "truncated",
+        "retrieved_provision_ids": [
+          "prov_d10d2d0ac395e8a2056c0eb3def8c8a5",
+          "prov_29647def4a6b58ce8ab203f4dd6d0274",
+          "prov_980bb0eebce9d850b946ae8e5c2c25b0",
+          "prov_c6a23c9209200171ba825f4607c238f3",
+          "prov_df72561d3bdfcaaa38e3189560ce2633",
+          "prov_fffc1ef369c34b9a756766c4e3622109",
+          "prov_65e7a863eb9613c8d824234a5a1689eb",
+          "prov_d9364002713d78b3d14d4dd481dbfeea"
+        ],
+        "retrieved_source": true,
+        "retrieved_target": true,
+        "published": [],
+        "rejected": 0,
+        "correct": false,
+        "errors": [
+          "model_outcome:truncated"
+        ],
+        "citation_ok": null,
+        "coverage_complete": true,
+        "validated": false,
+        "verdicts": [],
+        "scoring_version": 2
+      }
+    }
+  ],
+  "rescore_note": "'score' is what the run recorded (historical, scorer at run time). 'rescored' is the current scorer, version 2 (app/services/evaluation.py)."
+}

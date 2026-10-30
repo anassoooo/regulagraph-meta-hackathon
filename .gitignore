@@ -1,0 +1,22 @@
+# Repository-wide safety net. Project-specific rules live in regulagraph/.gitignore.
+
+# Environment files and credentials (anywhere in the tree)
+.env
+.env.*
+!.env.example
+*.env
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+secrets*.json
+service-account*.json
+
+# Local tooling
+.venv/
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db

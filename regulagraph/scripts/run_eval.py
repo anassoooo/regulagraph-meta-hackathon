@@ -1,0 +1,256 @@
+"""Run the evaluation cases in eval/cases.json.
+
+    python scripts/run_eval.py structural                      # free: validators only, no model
+    python scripts/run_eval.py live --confirm-paid-call --case E01 [--max-completion-tokens 2048]
+                                                                # paid: one Muse call per named case
+
+``structural`` feeds hand-made proposals (gold answers and perturbations)
+through the pipeline with a replayed response. It measures what validation
+rejects and what it cannot detect. It is not a model benchmark.
+
+``live`` needs META_INFERENCE_ENABLED=true and MODEL_API_KEY, plus the flag,
+after you have checked your credit balance. Each case is one request capped at
+META_MAX_COMPLETION_TOKENS output+reasoning tokens and META_MAX_PROMPT_CHARS of
+provision text. Results, including model outcome, token usage and latency, are
+written to eval/results/ exactly as observed.
+"""
+
+import argparse
+import json
+import sys
+from collections import Counter
+from datetime import UTC, datetime
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from app.core.config import Settings  # noqa: E402
+from app.core.redaction import configured_secrets, install_log_redaction, redact_obj  # noqa: E402
+from app.services.evaluation import (  # noqa: E402
+    SCORING_VERSION,
+    approx_cost_usd,
+    load_cases,
+    required_provisions,
+    load_corpus_view,
+    retrieval_recall,
+    score_case,
+    structural_probes,
+)
+from app.services.investigator import investigate, retrieve  # noqa: E402
+from app.services.meta_client import MetaModelAdapter  # noqa: E402
+
+RESULTS = Path(__file__).resolve().parents[1] / "eval" / "results"
+# Outcomes that indicate an API/schema problem rather than a case-specific answer.
+SYSTEMIC_FAILURES = {"disabled", "invalid_request", "provider_error", "malformed"}
+
+
+def _write(kind: str, payload: dict) -> Path:
+    payload = redact_obj(payload, configured_secrets(Settings()))  # never write a credential to disk
+    RESULTS.mkdir(parents=True, exist_ok=True)
+    out = RESULTS / f"{kind}_{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}.json"
+    out.write_text(json.dumps(payload, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
+    return out
+
+
+def run_structural(settings: Settings) -> int:
+    cases = load_cases()
+    view = load_corpus_view(settings)
+    results = [r for case in cases.cases for r in structural_probes(case, view, settings)]
+    print(f"{'case':5} {'probe':38} {'expect':12} {'published':9} {'rejection':24} ok")
+    for r in results:
+        print(f"{r.case_id:5} {r.probe:38} {r.expectation:12} {str(r.published):9} {str(r.rejection):24} "
+              f"{'yes' if r.as_expected else 'NO'}")
+    by_exp = Counter((r.expectation, r.as_expected) for r in results)
+    summary = {
+        "probes": len(results),
+        "accept_as_expected": by_exp[("accept", True)], "accept_total": sum(v for (e, _), v in by_exp.items() if e == "accept"),
+        "reject_as_expected": by_exp[("reject", True)], "reject_total": sum(v for (e, _), v in by_exp.items() if e == "reject"),
+        "undetectable_published": by_exp[("undetectable", True)],
+        "undetectable_total": sum(v for (e, _), v in by_exp.items() if e == "undetectable"),
+    }
+    recall = [retrieval_recall(c, view, settings) for c in cases.cases if c.polarity == "positive"]
+    print()
+    print(f"{'case':5} {'source retrieved':17} {'target retrieved':17} {'provisions':10} prompt chars")
+    for r in recall:
+        print(f"{r.case_id:5} {str(r.source_retrieved):17} {str(r.target_retrieved):17} {r.retrieved:<10} {r.prompt_chars}")
+    summary["retrieval_source_hits"] = sum(r.source_retrieved for r in recall)
+    summary["retrieval_target_hits"] = sum(1 for r in recall if r.target_retrieved)
+    summary["retrieval_target_total"] = sum(1 for r in recall if r.target_retrieved is not None)
+    summary["retrieval_cases"] = len(recall)
+    print(json.dumps(summary, indent=2))
+    out = _write("structural", {
+        "kind": "structural_probes",
+        "note": "Hand-made proposals replayed through the pipeline, plus deterministic retrieval recall; "
+                "no model was called.",
+        "settings": {"max_prompt_chars": settings.meta_max_prompt_chars},
+        "summary": summary,
+        "retrieval": [r.model_dump() for r in recall],
+        "results": [r.model_dump() for r in results],
+    })
+    print(f"written: {out}")
+    return 0 if all(r.as_expected for r in results) else 1
+
+
+def run_live(settings: Settings, confirmed: bool, only: list[str], reasoning_effort: str) -> int:
+    if not confirmed:
+        print("refusing: pass --confirm-paid-call after checking your Meta credit balance", file=sys.stderr)
+        return 2
+    if not only:
+        print("refusing: name the cases to run with --case (no implicit full run)", file=sys.stderr)
+        return 2
+    cases = load_cases()
+    view = load_corpus_view(settings)
+    adapter = MetaModelAdapter(settings)
+    results, usage = [], Counter()
+    for case in cases.cases:
+        if only and case.id not in only:
+            continue
+        sources, provisions = view.scope(case)
+        # Preflight: the provisions the case needs must be in the prompt, or no call is made.
+        retrieved = retrieve(case.question, [p for ps in provisions.values() for p in ps], sources,
+                             max_chars=settings.meta_max_prompt_chars)
+        shown = {p.provision_id for p in retrieved}
+        required = required_provisions(case, view)
+        missing = sorted(label for label, pid in required.items() if pid not in shown)
+        if missing:
+            results.append({"case_id": case.id, "question": case.question, "preflight": "retrieval_failure",
+                            "missing": missing, "required": sorted(required), "api_called": False})
+            print(f"{case.id} preflight=retrieval_failure missing={missing} (no API call)")
+            continue
+        outcome = investigate(case.question, sources, provisions, adapter, settings, selected=retrieved,
+                              reasoning_effort=reasoning_effort)  # one call, no retry
+        scored = score_case(case, outcome, view)
+        u = outcome.model_call.usage
+        cost = approx_cost_usd(u.prompt_tokens, u.completion_tokens) if u else None
+        results.append({"case_id": case.id, "question": case.question, "preflight": "ok",
+                        "required": sorted(required), "api_called": True,
+                        "prompt_chars": outcome.prompt_chars, "approx_cost_usd": cost,
+                        "proposals_received": outcome.proposals_received,
+                        "score": scored.model_dump(), "model_call": outcome.model_call.model_dump(),
+                        "rejected": [r.model_dump() for r in outcome.rejected],
+                        "content_digest": outcome.finalized.content_digest,
+                        "report": json.loads(outcome.finalized.snapshot)})
+        if u:
+            usage.update(u.model_dump(exclude={"completion_tokens_details"}))
+            usage["reasoning_tokens"] += u.reasoning_tokens
+        print(f"{case.id} {case.phenomenon:36} outcome={outcome.model_call.outcome:14} "
+              f"correct={scored.correct} validated={scored.validated} errors={scored.errors} cost~${cost}")
+        if outcome.model_call.outcome in SYSTEMIC_FAILURES:
+            print(f"stopping: systemic failure ({outcome.model_call.outcome}); no further calls", file=sys.stderr)
+            break
+    summary = {
+        "source": "live Meta Model API (not a replay)",
+        "max_completion_tokens": settings.meta_max_completion_tokens,
+        "reasoning_effort": reasoning_effort,
+        "max_prompt_chars": settings.meta_max_prompt_chars,
+        "cases_requested": only,
+        "api_calls": sum(1 for r in results if r.get("api_called")),
+        "retrieval_failures": [r["case_id"] for r in results if r.get("preflight") == "retrieval_failure"],
+        "correct": sum(1 for r in results if r.get("score", {}).get("correct")),
+        "validated": sum(1 for r in results if r.get("score", {}).get("validated")),
+        "tokens": dict(usage),
+        "approx_cost_usd": round(sum(r.get("approx_cost_usd") or 0 for r in results), 5),
+        "model": settings.meta_model_id,
+    }
+    print(json.dumps(summary, indent=2))
+    out = _write("live", {"kind": "live_eval", "summary": summary, "results": results})
+    print(f"written: {out}")
+    return 0
+
+
+class _StoredOutcome:
+    """The parts of a recorded live outcome that scoring reads (no model call)."""
+
+    def __init__(self, record: dict) -> None:
+        from types import SimpleNamespace
+
+        from app.models.schemas import InvestigationReport
+        from app.services.investigator import ModelCallRecord, Rejection
+
+        report = InvestigationReport.model_validate(record["report"])
+        self.finalized = SimpleNamespace(report=lambda: report)
+        self.model_call = ModelCallRecord.model_validate(record["model_call"])
+        self.rejected = [Rejection.model_validate(r) for r in record["rejected"]]
+        self.retrieved_provision_ids = record["score"].get("retrieved_provision_ids") or [
+            p.provision_id for p in report.provisions
+        ]
+
+
+CURRENT_SUMMARY = RESULTS / "current_scoring_summary.json"
+
+
+def run_rescore(settings: Settings, paths: list[Path]) -> int:
+    """Re-apply the current scorer to recorded live results and write one versioned summary.
+
+    Per file, the run's own 'score' (historical) is never modified; 'rescored' is replaced by the
+    current scorer's result and stamped with SCORING_VERSION. CURRENT_SUMMARY lists every recorded
+    live call under the current scorer only.
+    """
+    cases = {c.id: c for c in load_cases().cases}
+    view = load_corpus_view(settings)
+    rows = []
+    for path in sorted(paths):
+        data = json.loads(path.read_text(encoding="utf-8"))
+        for record in data["results"]:
+            if not record.get("api_called", True):
+                continue
+            case_id = record.get("case_id") or record["score"]["case_id"]
+            current = score_case(cases[case_id], _StoredOutcome(record), view).model_dump()
+            record["rescored"] = current
+            usage = record["model_call"].get("usage") or {}
+            rows.append({
+                "file": path.name, "case_id": case_id, "model_outcome": current["model_outcome"],
+                "finish_reason": record["model_call"].get("finish_reason"),
+                "retrieved_source": current["retrieved_source"], "retrieved_target": current["retrieved_target"],
+                "verdicts": [v["verdict"] for v in current["verdicts"]], "citation_ok": current["citation_ok"],
+                "correct": current["correct"], "validated": current["validated"], "errors": current["errors"],
+                "prompt_tokens": usage.get("prompt_tokens"), "completion_tokens": usage.get("completion_tokens"),
+                "reasoning_tokens": (usage.get("completion_tokens_details") or {}).get("reasoning_tokens"),
+                "latency_ms": record["model_call"].get("latency_ms"),
+                "historical_score": {"correct": record["score"].get("correct"),
+                                     "validated": record["score"].get("validated")},
+            })
+            print(f"{path.name} {case_id} correct={current['correct']} validated={current['validated']} "
+                  f"errors={current['errors']}")
+        data["rescore_note"] = (f"'score' is what the run recorded (historical, scorer at run time). 'rescored' is "
+                                f"the current scorer, version {SCORING_VERSION} (app/services/evaluation.py).")
+        path.write_text(json.dumps(redact_obj(data, configured_secrets(Settings())), indent=2, ensure_ascii=False,
+                                   default=str), encoding="utf-8")
+    distinct = sorted({r["case_id"] for r in rows})
+    latest = {r["case_id"]: r for r in rows}  # files are sorted by timestamp: the last run of each case wins
+    summary = {
+        "scoring_version": SCORING_VERSION,
+        "note": "Current scorer only. Historical per-run scores stay in each file's 'score' field.",
+        "calls": rows,
+        "distinct_cases": distinct,
+        "latest_run_per_case": {c: {"file": r["file"], "correct": r["correct"], "validated": r["validated"]}
+                                for c, r in latest.items()},
+        "validated_cases_latest_run": sorted(c for c, r in latest.items() if r["validated"]),
+    }
+    CURRENT_SUMMARY.write_text(json.dumps(redact_obj(summary, configured_secrets(Settings())), indent=2,
+                                          ensure_ascii=False), encoding="utf-8")
+    print(f"written: {CURRENT_SUMMARY}")
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("mode", choices=["structural", "live", "rescore"])
+    parser.add_argument("files", nargs="*", type=Path, help="rescore mode: recorded live_*.json files")
+    parser.add_argument("--confirm-paid-call", action="store_true")
+    parser.add_argument("--case", action="append", default=[], help="live mode: run only these case ids (required)")
+    parser.add_argument("--max-completion-tokens", type=int, help="live mode: override META_MAX_COMPLETION_TOKENS")
+    parser.add_argument("--reasoning-effort", default="low", help="live mode: reasoning_effort sent to the model")
+    args = parser.parse_args()
+    overrides = {} if args.max_completion_tokens is None else {"meta_max_completion_tokens": args.max_completion_tokens}
+    settings = Settings(**overrides)  # validated: 0 < tokens <= 32768
+    install_log_redaction(settings)
+    if args.mode == "structural":
+        return run_structural(settings)
+    if args.mode == "rescore":
+        return run_rescore(settings, args.files)
+    return run_live(settings, args.confirm_paid_call, args.case, args.reasoning_effort)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

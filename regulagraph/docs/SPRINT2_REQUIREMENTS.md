@@ -1,8 +1,31 @@
 # Sprint 2 requirements carried over from the PR #3 review
 
-Status: **documented, not implemented** unless a section says otherwise. They are listed
-here so Sprint 2 starts from the known gaps. They were raised in PM and independent reviews
-of PR #3.
+These requirements were raised in the PM and independent reviews of PR #3.
+
+## Status after Sprint 2 (branch `feat/sprint-2-investigation`)
+
+| Req | Status | Where |
+|---|---|---|
+| R1 provision identity | **Implemented** (see deviations below) | `models/schemas.py` (`Provision`, `ProvisionSegment`), `services/provisions.py`, `tests/test_provisions.py`, `tests/test_real_corpus.py` |
+| R2 evidence within provisions | **Implemented**; confirmation is still blocked | `services/relationships.py`, `finalize_report`, `tests/test_relationships.py` |
+| R3 extractor provenance | Partly done. The corpus PDF hash is now checked before parsing; evidence is still not bound to an extraction digest | `services/corpus.py` |
+| R4 real-document measurement | **Done** for 3 French and 2 Arabic PDFs | `docs/EXTRACTION_QUALITY.md` |
+| R5 ingestion limits | Partly done: byte limit (before reading), page limit (before extraction). No time limit, decompression guard or per-page text limit | `services/document_parser.py`, `tests/test_ingestion.py` |
+
+**R1 deviations and choices:**
+
+- **Headers and footers (R1.5)** are *kept* inside spans, not excluded.
+- **Quoted provisions (R1.6)** are detected only by guillemets around a heading. Replacement annex text, such as "Annexe III (nouvelle) à la circulaire n°91-24" inside 2025-01, is not marked as quoted.
+- **The page separator** is the explicit constant `PROVISION_SEGMENT_SEPARATOR = "\n"`.
+- **Empty pages:** a provision ends before an empty page.
+
+**R2 additions:**
+
+- A relationship may target a whole document (`target_document_id`), for example "repeals circular 2018-16".
+- The lexical rule is `regulagraph.lexical.v1`: a document target is matched by its reference number (whitespace allowed around the hyphen); a provision target by "article N" or "annexe N".
+- A quoted provision can never be a source.
+
+The sections below are the original requirements, kept for reference.
 
 ---
 

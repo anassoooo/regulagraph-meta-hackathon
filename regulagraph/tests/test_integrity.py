@@ -22,16 +22,16 @@ from app.models.schemas import (
     FinalizedReport,
     Inference,
     InvestigationReport,
-    Provision,
     RegulatoryRelationship,
     page_text_digest,
 )
 from app.services.document_parser import extract_pdf_bytes
 from app.services.evidence import locate_quote
 from app.services.meta_client import ChatMessage, MetaModelAdapter
+from app.services.relationships import find_lexical_match, provision_reference_pattern
 from app.services.report import finalize_report
 
-PAGES = ["Article 1\nLes banques doivent declarer.", "Article 2\nLa circulaire n 2018-06 est abrogee."]
+PAGES = ["Article 1\nLes banques doivent declarer.", "Article 2\nL article 1 est abrogee."]
 WHEN = datetime(2026, 10, 27, tzinfo=UTC)
 SEP = "\x1f"
 
@@ -47,11 +47,11 @@ def doc(make_pdf) -> ExtractedDocument:
 
 
 @pytest.fixture
-def report(doc) -> InvestigationReport:
+def report(doc, provision_for) -> InvestigationReport:
     doc_id = doc.document.document_id
-    art1 = Provision(document_id=doc_id, label="Article 1", text="x", page_start=1, page_end=1)
-    art2 = Provision(document_id=doc_id, label="Article 2", text="y", page_start=2, page_end=2)
-    ev = locate_quote(doc.pages[1], "La circulaire n 2018-06 est abrogee.")
+    art1 = provision_for(doc, 1, "Article 1", number="1")
+    art2 = provision_for(doc, 2, "Article 2", number="2")
+    ev = locate_quote(doc.pages[1], "L article 1 est abrogee.")
     inf = Inference(statement="Article 2 repeals circular 2018-06", model_id="m", supporting_evidence_ids=[ev.evidence_id])
     rel = RegulatoryRelationship(
         source_provision_id=art2.provision_id,
@@ -92,7 +92,7 @@ def test_inference_separator_injection_does_not_collide() -> None:
 
 
 def test_relationship_separator_injection_does_not_collide() -> None:
-    common = {"basis": "extracted", "evidence_ids": ["ev_1"]}
+    common = {"basis": "inferred", "inference_id": "inf_1", "evidence_ids": ["ev_1"]}
     injected = RegulatoryRelationship(
         source_provision_id="p" + SEP + "references" + SEP + "q", relation_type="amends", target_provision_id="r", **common
     )
@@ -175,10 +175,10 @@ def _change_inference_statement(data: dict) -> None:
     [
         _change_inference_statement,
         lambda d: d["relationships"][0].update(relation_type="supersedes", relationship_id=""),
-        lambda d: d["provisions"][0].update(text="different text"),
+        lambda d: d["provisions"][0].update(label="Article 1 (modifie)"),
         lambda d: d.update(question="Another question?", report_id=""),
     ],
-    ids=["inference_statement", "relationship_type", "provision_text", "question"],
+    ids=["inference_statement", "relationship_type", "provision_label", "question"],
 )
 def test_changed_findings_change_content_digest(report, mutate) -> None:
     data = report.model_dump(mode="json")
@@ -381,8 +381,17 @@ def test_inferred_relationship_can_never_be_confirmed() -> None:
 
 def _extracted_report(report: InvestigationReport, status: str) -> InvestigationReport:
     data = report.model_dump()
+    target = report.provisions[0]  # Article 1, named in the cited quote
+    match = find_lexical_match(report.evidence[0], provision_reference_pattern(target))
     data["relationships"] = [
-        {**data["relationships"][0], "basis": "extracted", "inference_id": None, "status": status, "relationship_id": ""}
+        {
+            **data["relationships"][0],
+            "basis": "extracted",
+            "inference_id": None,
+            "lexical_match": match.model_dump(),
+            "status": status,
+            "relationship_id": "",
+        }
     ]
     return InvestigationReport.model_validate(data)
 

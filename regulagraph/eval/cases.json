@@ -1,0 +1,181 @@
+{
+  "description": "Manually written relationship cases (E13 added for the live pilot) over the French BCT corpus in data/manifest.json. Each gold quote is copied verbatim from the extracted text (pypdf 6.21.2, plain mode) and is checked automatically by tests/test_eval_cases.py. Quotations are short excerpts reproduced exactly, with the BCT site as source.",
+  "review": {
+    "written_by": "implementation (Sprint 2), from reading the extracted French text",
+    "reviewed_by": null,
+    "status": "pending PM/domain review: the expected relations are a reading of the text, not a legal opinion"
+  },
+  "relation_semantics": "Expected types follow the system prompt's definitions. 'acceptable_types' lists every type counted as correct; any other type between the same provisions is a type error.",
+  "cases": [
+    {
+      "id": "E01",
+      "phenomenon": "explicit_repeal",
+      "polarity": "positive",
+      "documents": ["bct-2026-10-fr", "bct-2018-16-fr"],
+      "question": "Quelle circulaire la circulaire n°2026-10 abroge-t-elle ou remplace-t-elle ?",
+      "expected": {
+        "source": {"doc": "bct-2026-10-fr", "kind": "article", "number": "52", "in_annex": false},
+        "target": {"kind": "document", "doc": "bct-2018-16-fr"},
+        "acceptable_types": ["repeals", "supersedes"],
+        "evidence_quote": "La présente circulaire abroge et remplace la circulaire n°2018-16",
+        "sufficient_quotes": ["abroge et remplace la circulaire n°2018-16"]
+      },
+      "notes": "Article 52 of 2026-10. 'abroge et remplace' is both a repeal and a replacement, so either type is accepted."
+    },
+    {
+      "id": "E02",
+      "phenomenon": "direction",
+      "polarity": "negative",
+      "documents": ["bct-2026-10-fr", "bct-2018-16-fr"],
+      "question": "La circulaire n°2018-16 abroge-t-elle la circulaire n°2026-10 ?",
+      "forbidden": [
+        {"source_doc": "bct-2018-16-fr", "target_doc": "bct-2026-10-fr", "types": ["repeals", "supersedes", "amends"]}
+      ],
+      "notes": "2018-16 (31 Dec 2018) predates 2026-10 and never mentions it; the repeal runs the other way (E01). Any repeal, supersession or amendment sourced in 2018-16 and pointing at 2026-10 is a direction error."
+    },
+    {
+      "id": "E03",
+      "phenomenon": "relation_type",
+      "polarity": "positive",
+      "documents": ["bct-2026-10-fr", "bct-2018-16-fr"],
+      "question": "La circulaire n°2026-10 modifie-t-elle la circulaire n°2018-16 ?",
+      "expected": {
+        "source": {"doc": "bct-2026-10-fr", "kind": "article", "number": "52", "in_annex": false},
+        "target": {"kind": "document", "doc": "bct-2018-16-fr"},
+        "acceptable_types": ["repeals", "supersedes"],
+        "evidence_quote": "La présente circulaire abroge et remplace la circulaire n°2018-16",
+        "sufficient_quotes": ["abroge et remplace la circulaire n°2018-16"]
+      },
+      "notes": "Leading question ('modifie'). The text repeals and replaces 2018-16 entirely; 'amends' is a type error."
+    },
+    {
+      "id": "E04",
+      "phenomenon": "negation",
+      "polarity": "positive",
+      "documents": ["bct-2026-10-fr"],
+      "question": "Les règles de plafonnement de l'article 17 de la circulaire n°2026-10 s'appliquent-elles au compte agent ?",
+      "expected": {
+        "source": {"doc": "bct-2026-10-fr", "kind": "article", "number": "35", "in_annex": false},
+        "target": {"kind": "provision", "doc": "bct-2026-10-fr", "kind_t": "article", "number": "17", "in_annex": false},
+        "acceptable_types": ["references"],
+        "evidence_quote": "Les règles de plafonnement énumérées au niveau de l’article 17 de la présente \ncirculaire ne sont pas applicables au compte agent."
+      },
+      "notes": "Article 35 cites Article 17 only to exclude its caps from the agent account. It neither amends, repeals nor conflicts with Article 17."
+    },
+    {
+      "id": "E05",
+      "phenomenon": "negation_qualifier",
+      "polarity": "positive",
+      "documents": ["bct-2026-10-fr"],
+      "question": "Quel est le lien entre l'article 15 et l'article 14 de la circulaire n°2026-10 ?",
+      "expected": {
+        "source": {"doc": "bct-2026-10-fr", "kind": "article", "number": "15", "in_annex": false},
+        "target": {"kind": "provision", "doc": "bct-2026-10-fr", "kind_t": "article", "number": "14", "in_annex": false},
+        "acceptable_types": ["references"],
+        "evidence_quote": "Sans préjudice des dispositions de l’article  14"
+      },
+      "notes": "'Sans préjudice de' preserves Article 14; it is a reference, not an amendment. The gold quote keeps the extractor's double space."
+    },
+    {
+      "id": "E06",
+      "phenomenon": "repeated_label",
+      "polarity": "positive",
+      "documents": ["bct-2026-10-fr"],
+      "question": "À quel article renvoie l'article 3 de la circulaire n°2026-10 pour les opérations de transfert de fonds par remise d'espèces ?",
+      "expected": {
+        "source": {"doc": "bct-2026-10-fr", "kind": "article", "number": "3", "in_annex": false},
+        "target": {"kind": "provision", "doc": "bct-2026-10-fr", "kind_t": "article", "number": "2", "in_annex": false},
+        "acceptable_types": ["references"],
+        "evidence_quote": "mentionnées au quatrième tiret de l’article 2 de la présente circulaire"
+      },
+      "notes": "Both 'Article 3' and 'Article 2' exist twice in 2026-10 (body and Annex 5). The source and target are the body articles; linking to Annex 5's Article 2 is a target error."
+    },
+    {
+      "id": "E07",
+      "phenomenon": "extraction_artifact",
+      "polarity": "positive",
+      "documents": ["bct-2026-10-fr"],
+      "question": "À quels plafonds le compte commerçant de l'article 23 de la circulaire n°2026-10 n'est-il pas soumis ?",
+      "expected": {
+        "source": {"doc": "bct-2026-10-fr", "kind": "article", "number": "23", "in_annex": false},
+        "target": {"kind": "provision", "doc": "bct-2026-10-fr", "kind_t": "article", "number": "17", "in_annex": false},
+        "acceptable_types": ["references"],
+        "evidence_quote": "non soumis aux plafonds prévus à l’article 1 7 de la présente"
+      },
+      "notes": "The extracted text reads 'l’article 1 7' (a spurious space inside 17). The lexical rule cannot match it, so the relationship carries no lexical_match even when correct."
+    },
+    {
+      "id": "E08",
+      "phenomenon": "target_outside_corpus",
+      "polarity": "negative",
+      "documents": ["bct-2025-01-fr", "bct-2018-16-fr", "bct-2026-10-fr"],
+      "question": "Quelle disposition la circulaire n°2025-01 abroge-t-elle et remplace-t-elle ?",
+      "forbidden": [
+        {"source_doc": "bct-2025-01-fr", "target_doc": "bct-2018-16-fr"},
+        {"source_doc": "bct-2025-01-fr", "target_doc": "bct-2026-10-fr"}
+      ],
+      "notes": "Article premier replaces Annex III of circular 91-24, which is not in the corpus. The correct output is no published relationship; linking to a listed circular instead is a fabricated target."
+    },
+    {
+      "id": "E09",
+      "phenomenon": "historical_reference_outside_corpus",
+      "polarity": "negative",
+      "documents": ["bct-2026-10-fr", "bct-2018-16-fr"],
+      "question": "À quelle circulaire relative à la lutte contre le blanchiment d'argent les établissements de paiement sont-ils soumis selon l'article 14 de la circulaire n°2026-10 ?",
+      "forbidden": [
+        {"source_doc": "bct-2026-10-fr", "source_number": "14", "target_doc": "bct-2018-16-fr"}
+      ],
+      "notes": "Article 14 refers to circular 2017-08 'telle que modifiée par les textes subséquents', which is not in the corpus. Pointing it at 2018-16 (which contains a similar Article 11) is wrong."
+    },
+    {
+      "id": "E10",
+      "phenomenon": "provision_level_overreach",
+      "polarity": "negative",
+      "documents": ["bct-2026-10-fr", "bct-2018-16-fr"],
+      "question": "L'article 14 de la circulaire n°2026-10 modifie-t-il l'article 11 de la circulaire n°2018-16 ?",
+      "forbidden": [
+        {"source_doc": "bct-2026-10-fr", "source_number": "14", "target_doc": "bct-2018-16-fr", "target_number": "11",
+         "types": ["amends", "repeals", "supersedes"]}
+      ],
+      "notes": "The two articles cover the same subject, but neither text says one modifies the other. The repeal is stated once, at document level, in Article 52 of 2026-10."
+    },
+    {
+      "id": "E11",
+      "phenomenon": "no_relation",
+      "polarity": "negative",
+      "documents": ["bct-2025-01-fr", "bct-2018-16-fr"],
+      "question": "Quel est le lien entre la circulaire n°2025-01 et la circulaire n°2018-16 ?",
+      "forbidden": [
+        {"source_doc": "bct-2025-01-fr", "target_doc": "bct-2018-16-fr"},
+        {"source_doc": "bct-2018-16-fr", "target_doc": "bct-2025-01-fr"}
+      ],
+      "notes": "Different subjects (risk division and provisioning vs payment institutions); neither text cites the other."
+    },
+    {
+      "id": "E12",
+      "phenomenon": "implementation_direction",
+      "polarity": "positive",
+      "documents": ["bct-2026-10-fr"],
+      "question": "En application de quel article de la circulaire n°2026-10 l'article 47 est-il pris ?",
+      "expected": {
+        "source": {"doc": "bct-2026-10-fr", "kind": "article", "number": "47", "in_annex": false},
+        "target": {"kind": "provision", "doc": "bct-2026-10-fr", "kind_t": "article", "number": "8", "in_annex": false},
+        "acceptable_types": ["implements", "references"],
+        "evidence_quote": "En application de l’article 8 de la présente circulaire"
+      },
+      "notes": "'En application de l'article 8' makes Article 47 the source. Article 8 -> Article 47 is a direction error."
+    },
+    {
+      "id": "E13",
+      "phenomenon": "negation",
+      "polarity": "negative",
+      "documents": ["bct-2026-10-fr"],
+      "question": "L'article 35 de la circulaire n°2026-10 abroge-t-il ou contredit-il l'article 17 de cette circulaire ?",
+      "forbidden": [
+        {"source_doc": "bct-2026-10-fr", "source_number": "35", "target_doc": "bct-2026-10-fr", "target_number": "17",
+         "types": ["amends", "repeals", "supersedes", "conflicts_with"]}
+      ],
+      "notes": "Added for the live pilot (negative counterpart of E04). Article 35 says the caps of Article 17 'ne sont pas applicables au compte agent': a qualified reference that narrows scope. It does not amend, repeal, supersede or contradict Article 17. A 'references' relationship is allowed and not counted as an error."
+    }
+  ]
+}

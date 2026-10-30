@@ -162,3 +162,37 @@ def test_falsey_env_values_keep_inference_disabled(monkeypatch, no_http_client, 
     monkeypatch.setenv("META_INFERENCE_ENABLED", value)
     with pytest.raises(InferenceDisabledError):
         MetaModelAdapter(Settings(_env_file=None)).complete(MESSAGES)
+
+
+# Sprint 2: structured output, reasoning effort, latency, rate-limit headers ----
+
+def test_optional_fields_are_sent_only_when_given(settings_factory) -> None:
+    sent: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(json.loads(request.content))
+        return httpx.Response(200, json=OK_BODY, headers={"x-ratelimit-remaining-tokens": "3999000"})
+
+    adapter = _adapter(settings_factory, handler)
+    plain = adapter.complete(MESSAGES)
+    fmt = {"type": "json_schema", "json_schema": {"name": "x", "schema": {"type": "object"}, "strict": True}}
+    adapter.complete(MESSAGES, response_format=fmt, reasoning_effort="low")
+    assert "response_format" not in sent[0] and "reasoning_effort" not in sent[0]
+    assert sent[1]["response_format"] == fmt and sent[1]["reasoning_effort"] == "low"
+    assert plain.http_status == 200 and plain.latency_ms is not None and plain.latency_ms >= 0
+    assert plain.rate_limit_remaining == {"x-ratelimit-remaining-tokens": "3999000"}
+
+
+@pytest.mark.parametrize("effort", ["", "ultra", "LOW"])
+def test_unknown_reasoning_effort_rejected_before_request(settings_factory, effort) -> None:
+    from app.core.errors import InvalidModelRequestError
+
+    with pytest.raises(InvalidModelRequestError, match="reasoning_effort"):
+        _adapter(settings_factory, _never_called).complete(MESSAGES, reasoning_effort=effort)
+
+
+def test_reasoning_tokens_are_read_from_usage_details(settings_factory) -> None:
+    body = {**OK_BODY, "usage": {**OK_BODY["usage"], "completion_tokens_details": {"reasoning_tokens": 3}}}
+    result = _adapter(settings_factory, lambda r: httpx.Response(200, json=body)).complete(MESSAGES)
+    assert result.usage.reasoning_tokens == 3
+    assert _adapter(settings_factory, lambda r: httpx.Response(200, json=OK_BODY)).complete(MESSAGES).usage.reasoning_tokens == 0

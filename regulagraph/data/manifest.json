@@ -1,1 +1,105 @@
-{}
+{
+  "description": "Public Banque Centrale de Tunisie circulars used by RegulaGraph Sprint 2. PDFs are not committed; run scripts/fetch_corpus.py to download them into data/raw/ and verify their SHA-256.",
+  "reuse": "Not redistributed. The BCT site terms (https://www.bct.gov.tn/bct/siteprod/documents/termes.pdf, retrieved 2026-10-30, sha256 266004b59954bb5c57e05ebb839497ae520436aa2f1a92bc76173094c6b73b77) protect site content by copyright 'subject to the legal provisions exempting official regulatory texts', allow download for personal purposes only, forbid copying content to another site or internal network, and allow quotation if reproduced exactly with the site cited as source. Whether the exemption covers these PDFs as published was not confirmed, so only URLs, hashes and short exact quotations (with source) are committed.",
+  "documents": [
+    {
+      "key": "bct-2026-10-fr",
+      "reference": "Circulaire n°2026-10",
+      "title": "Circulaire de la Banque Centrale de Tunisie n°2026-10 du 25 septembre 2026 (règles régissant l'activité et le fonctionnement des établissements de paiement)",
+      "publication_date": "2026-09-25",
+      "language": "fr",
+      "role": "investigation",
+      "source_url": "https://www.bct.gov.tn/bct/siteprod/documents/Cir_2026_10__fr.pdf",
+      "filename": "Cir_2026_10__fr.pdf",
+      "sha256": "fe31431614e7eeee7b163583c02af0e363146c1947c51b223d8354f3ee6aab0d",
+      "bytes": 517048,
+      "retrieved_on": "2026-10-30",
+      "pages": 46,
+      "extraction_notes": [
+        "All 46 pages have a text layer; no empty pages, no U+FFFD.",
+        "Words are occasionally split by spurious spaces (e.g. 'se conform er', 't e ls que', 'd e l'équité') and numbers by a space before the hyphen ('n°2017 -6').",
+        "Annexes 1-6 follow Article 52. Annex 5 numbers its own articles (Article Premier to Article 11), so 'Article 2' to 'Article 11' occur twice in the document.",
+        "Pages 44-46 are reporting tables; cell text is extracted as run-together lines.",
+        "Press reports mention a corrected French version (published 2026-09-28) that only renumbers two articles. The hash identifies the file served on 2026-10-30; whether it is the corrected version was not checked."
+      ]
+    },
+    {
+      "key": "bct-2018-16-fr",
+      "reference": "Circulaire n°2018-16",
+      "title": "Circulaire de la BCT n°2018-16 du 31 décembre 2018 (règles régissant l'activité et le fonctionnement des établissements de paiement)",
+      "publication_date": "2018-12-31",
+      "language": "fr",
+      "role": "investigation",
+      "source_url": "https://www.bct.gov.tn/bct/siteprod/documents/Cir_2018_16_fr.pdf",
+      "filename": "Cir_2018_16_fr.pdf",
+      "sha256": "3403306ac786e03ea0bad99ebc126629c82fe33505dc5998385641977a0d3eb2",
+      "bytes": 315241,
+      "retrieved_on": "2026-10-30",
+      "pages": 18,
+      "extraction_notes": [
+        "All 18 pages have a text layer; no empty pages, no U+FFFD.",
+        "The title line is extracted as 'N° 2018 -61'. The BCT index and Article 52 of circular 2026-10 call it 2018-16. Not checked against the rendered page, so it is unknown whether the PDF prints the digits reversed or the extractor reorders them.",
+        "Spaces before hyphens in references ('n°2016 -35', 'n°91 -22').",
+        "Annexes 1 and 2 (pages 17-18) are lists of identification fields."
+      ]
+    },
+    {
+      "key": "bct-2025-01-fr",
+      "reference": "Circulaire n°2025-01",
+      "title": "Circulaire aux banques et aux établissements financiers n°2025-01 du 29 janvier 2025 (division, couverture des risques et suivi des engagements)",
+      "publication_date": "2025-01-29",
+      "language": "fr",
+      "role": "investigation",
+      "source_url": "https://www.bct.gov.tn/bct/siteprod/documents/Cir_2025_01_fr.pdf",
+      "filename": "Cir_2025_01_fr.pdf",
+      "sha256": "4fda66ba8b5ed5f9050b802bbdd6e27313a606d8ccb2c910a9bb9de42d120126",
+      "bytes": 412884,
+      "retrieved_on": "2026-10-30",
+      "pages": 7,
+      "extraction_notes": [
+        "All 7 pages have a text layer; no empty pages, no U+FFFD.",
+        "Article premier replaces Annex III of circular 91-24, which is not in this corpus. Annex 1 is the replacement text ('Annexe III (nouvelle) à la circulaire n°91-24'); the segmenter does not mark it as quoted text of another instrument.",
+        "Annex 2 (page 7) is a reporting template table."
+      ]
+    },
+    {
+      "key": "bct-2026-10-ar",
+      "reference": "Circulaire n°2026-10 (version arabe)",
+      "title": "Circulaire de la Banque Centrale de Tunisie n°2026-10 du 25 septembre 2026 - version arabe",
+      "publication_date": "2026-09-25",
+      "language": "ar",
+      "role": "quality_only",
+      "source_url": "https://www.bct.gov.tn/bct/siteprod/documents/Cir_2026_10__ar.pdf",
+      "filename": "Cir_2026_10__ar.pdf",
+      "sha256": "3fa78c2800cdc63197bb50681e202894fbf365fb92151d5b153bb0fe98447475",
+      "bytes": 528703,
+      "retrieved_on": "2026-10-30",
+      "pages": 35,
+      "extraction_notes": [
+        "All 35 pages have a text layer. Arabic is in logical order with base letters (no presentation forms).",
+        "Spaces are often missing between words and numbers ('لسنة2017', 'في31') or inserted inside phrases.",
+        "Not segmented into provisions and not used for evidence in Sprint 2."
+      ]
+    },
+    {
+      "key": "bct-2018-16-ar",
+      "reference": "Circulaire n°2018-16 (version arabe)",
+      "title": "Circulaire de la BCT n°2018-16 du 31 décembre 2018 - version arabe",
+      "publication_date": "2018-12-31",
+      "language": "ar",
+      "role": "quality_only",
+      "source_url": "https://www.bct.gov.tn/bct/siteprod/documents/Cir_2018_16_ar.pdf",
+      "filename": "Cir_2018_16_ar.pdf",
+      "sha256": "73cb0fd1aec37fdf5f929bea4f8306bc13a4ee27888e88e87d2e412ed7ad4658",
+      "bytes": 510610,
+      "retrieved_on": "2026-10-30",
+      "pages": 20,
+      "extraction_notes": [
+        "UNUSABLE FOR EVIDENCE. All 20 pages have a text layer and no automatic signal fires (no U+FFFD, no presentation forms), but the text is wrong.",
+        "Digits are systematically substituted: the French preamble cites 'n°2006-19 du 28 novembre 2006'; the Arabic extraction reads 'عدد 09 لسنة4003 ... في 48 نوفمبو 4003' (2->4, 1->0, 6->3).",
+        "Letters are substituted or displaced ('نوفمبو' for 'نوفمبر'; 'لموعلى ا نشور' for 'وعلى المنشور'), and words are merged ('المتعلقبقواعد').",
+        "Bullets are extracted as private-use character U+F0B7."
+      ]
+    }
+  ]
+}
