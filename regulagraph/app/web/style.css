@@ -35,7 +35,7 @@ h4 { font-size: .85rem; margin: 1rem 0 .4rem; text-transform: uppercase; letter-
 main { padding: 1rem; }
 .view { display: grid; grid-template-columns: 280px 1fr 380px; gap: 1rem; align-items: start; }
 .view[hidden] { display: none; }
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 1rem; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 1rem; min-width: 0; }
 .panel.wide { grid-column: 1 / -1; }
 .hint { color: var(--muted); font-size: .85rem; }
 
@@ -58,6 +58,7 @@ main { padding: 1rem; }
 
 .graph-wrap svg { width: 100%; height: auto; min-height: 220px; border: 1px solid var(--line); border-radius: 8px; background: #fbfcfe; }
 .legend { font-size: .8rem; color: var(--muted); }
+.narrow-only { display: none; }
 .legend-edge { display: inline-block; width: 28px; border-top: 2px dashed var(--ai); vertical-align: middle; }
 .node rect { fill: #fff; stroke: #8792a6; stroke-width: 1.5; }
 .node.document rect { fill: #eef2f8; stroke-dasharray: 2 2; }
@@ -99,4 +100,11 @@ main { padding: 1rem; }
 
 @media (max-width: 1100px) {
   .view { grid-template-columns: 1fr; }
+}
+
+/* Narrow screens: keep the graph at its natural size (readable labels) and scroll it inside its box. */
+@media (max-width: 760px) {
+  .graph-wrap { overflow-x: auto; }
+  .graph-wrap svg { width: 860px; max-width: none; }
+  .narrow-only { display: block; }
 }

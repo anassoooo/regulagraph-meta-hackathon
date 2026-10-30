@@ -88,7 +88,7 @@ export function provisionLabel(prov, docs) {
 // Graph: one node per involved provision, plus one node per whole-document target.
 // Columns follow document order in the response (the source document first);
 // rows follow page order. Parallel edges (same endpoints) get distinct curve offsets.
-export function buildGraph(replay, { width = 720, columnGap = 360, top = 60, rowGap = 110 } = {}) {
+export function buildGraph(replay, { width = 860, columnGap = 520, top = 130, rowGap = 110 } = {}) {
   const docs = index(replay.documents, "document_id");
   const provs = index(replay.provisions, "provision_id");
   const docOrder = (replay.documents || []).map((d) => d.document_id);
@@ -159,21 +159,37 @@ export function buildGraph(replay, { width = 720, columnGap = 360, top = 60, row
       parallelIndex: k,
     };
   });
-  const height = top + rowGap * Math.max(1, ...[...byColumn.values()].map((l) => l.length));
+  const height = top + rowGap * Math.max(1, ...[...byColumn.values()].map((l) => l.length)) - rowGap / 2;
   return { nodes: [...nodes.values()], edges, width, height };
 }
 
-// Quadratic curve between two nodes; parallel edges bend progressively further.
+export const NODE_HALF_WIDTH = 105;
+export const NODE_HALF_HEIGHT = 26;
+
+// Quadratic curve between the borders of two node boxes (so the arrowhead is not hidden
+// under the target box); parallel edges bend progressively further. A quadratic curve's apex
+// is half its bend away from the chord, so a 60px bend step puts apexes 30px apart: enough for
+// each label (drawn just outside its own apex) to clear the neighbouring curve.
+export const PARALLEL_BEND_STEP = 60;
+
 export function edgePath(from, to, parallelIndex = 0) {
-  const bend = 40 + 45 * parallelIndex;
+  const bend = 40 + PARALLEL_BEND_STEP * parallelIndex;
   if (from.x === to.x) {
-    const cx = from.x + 120 + bend;
+    // Same column: leave from the right side of the source box and enter the right side of the target box.
+    const x0 = from.x + NODE_HALF_WIDTH;
+    const x1 = to.x + NODE_HALF_WIDTH + 6;
+    const cx = from.x + NODE_HALF_WIDTH + 40 + bend;
     const cy = (from.y + to.y) / 2;
-    return { d: `M ${from.x} ${from.y} Q ${cx} ${cy} ${to.x} ${to.y}`, labelX: cx - 50, labelY: cy };
+    return { d: `M ${x0} ${from.y} Q ${cx} ${cy} ${x1} ${to.y}`, labelX: cx - 10, labelY: cy, textAnchor: "start" };
   }
-  const mx = (from.x + to.x) / 2;
-  const my = (from.y + to.y) / 2 - bend;
-  return { d: `M ${from.x} ${from.y} Q ${mx} ${my} ${to.x} ${to.y}`, labelX: mx, labelY: (from.y + to.y) / 2 - bend / 2 - 4 };
+  const dir = to.x > from.x ? 1 : -1;
+  const x0 = from.x + dir * NODE_HALF_WIDTH;
+  const x1 = to.x - dir * (NODE_HALF_WIDTH + 6);
+  const y0 = from.y - NODE_HALF_HEIGHT / 2;
+  const y1 = to.y - NODE_HALF_HEIGHT / 2;
+  const mx = (x0 + x1) / 2;
+  const my = (y0 + y1) / 2 - bend;
+  return { d: `M ${x0} ${y0} Q ${mx} ${my} ${x1} ${y1}`, labelX: mx, labelY: (y0 + y1) / 2 - bend / 2 - 6, textAnchor: "middle" };
 }
 
 export function inspectorModel(replay, relationshipId) {

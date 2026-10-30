@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  NODE_HALF_WIDTH,
   buildGraph,
   edgePath,
   errorMessage,
@@ -53,6 +54,12 @@ test("graph has one provision node, one whole-document node and two parallel edg
   const a = edgePath(prov, doc, 0);
   const b = edgePath(prov, doc, 1);
   assert.notEqual(a.d, b.d, "parallel edges must not overlap");
+  // Edges run between box borders, so the arrowhead is not hidden under the target box.
+  const [, x0] = a.d.split(" ");
+  const parts = a.d.split(" ");
+  assert.equal(Number(x0), prov.x + NODE_HALF_WIDTH);
+  assert.ok(Number(parts[parts.length - 2]) <= doc.x - NODE_HALF_WIDTH, "edge ends before the target box");
+  assert.ok(a.labelY > 0 && b.labelY > 0, "labels stay inside the canvas");
 });
 
 test("graph is deterministic", () => {

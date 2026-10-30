@@ -1,6 +1,8 @@
 // DOM controller. All untrusted text (source quotations, model output, labels) is
 // inserted with textContent or SVG text nodes, never as HTML.
 import {
+  NODE_HALF_HEIGHT,
+  NODE_HALF_WIDTH,
   buildGraph,
   edgePath,
   errorMessage,
@@ -147,7 +149,7 @@ function renderGraph(replay) {
     g.append(svg("title", {}, `${e.label} (AI candidate, unconfirmed)`));
     g.append(svg("path", { d: path.d, class: "edge-hit" }));
     g.append(svg("path", { d: path.d, class: "edge-line", "marker-end": "url(#arrow)" }));
-    g.append(svg("text", { x: path.labelX, y: path.labelY, class: "edge-label", "text-anchor": "middle" }, `${e.label} · candidate`));
+    g.append(svg("text", { x: path.labelX, y: path.labelY, class: "edge-label", "text-anchor": path.textAnchor }, `${e.label} · candidate`));
     const select = () => selectRelationship(e.id);
     g.addEventListener("click", select);
     g.addEventListener("keydown", (ev) => {
@@ -160,7 +162,8 @@ function renderGraph(replay) {
   }
   for (const n of graph.nodes) {
     const g = svg("g", { class: `node ${n.kind}` });
-    g.append(svg("rect", { x: n.x - 105, y: n.y - 26, width: 210, height: 52, rx: 8 }));
+    g.append(svg("rect", { x: n.x - NODE_HALF_WIDTH, y: n.y - NODE_HALF_HEIGHT, width: 2 * NODE_HALF_WIDTH,
+      height: 2 * NODE_HALF_HEIGHT, rx: 8 }));
     g.append(svg("text", { x: n.x, y: n.y - 4, "text-anchor": "middle", class: "node-label" }, n.label));
     g.append(svg("text", { x: n.x, y: n.y + 15, "text-anchor": "middle", class: "node-sub" }, n.sublabel));
     root.append(g);
