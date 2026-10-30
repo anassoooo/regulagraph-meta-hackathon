@@ -1,0 +1,346 @@
+{
+  "kind": "live_eval",
+  "summary": {
+    "source": "live Meta Model API (not a replay)",
+    "max_completion_tokens": 2048,
+    "reasoning_effort": "low",
+    "max_prompt_chars": 24000,
+    "cases_run": 1,
+    "correct": 1,
+    "tokens": {
+      "prompt_tokens": 3260,
+      "completion_tokens": 1922,
+      "total_tokens": 5182
+    },
+    "model": "muse-spark-1.3"
+  },
+  "results": [
+    {
+      "case_id": "E01",
+      "question": "Quelle circulaire la circulaire n°2026-10 abroge-t-elle ou remplace-t-elle ?",
+      "prompt_chars": 11696,
+      "proposals_received": 2,
+      "score": {
+        "case_id": "E01",
+        "phenomenon": "explicit_repeal",
+        "polarity": "positive",
+        "model_outcome": "ok",
+        "retrieved_provision_ids": [
+          "prov_d10d2d0ac395e8a2056c0eb3def8c8a5",
+          "prov_7a77a29fc7dddcb8f6558123175eaa61",
+          "prov_3318eb490cae80d2c574dec62c4ec8e1",
+          "prov_c54fee71ede561dbe9964b904817d664",
+          "prov_c6f8b3812e3b03419ae244cef0abb77e",
+          "prov_0f8fc0e7521a6e83062f7dd6f8d09ae2",
+          "prov_658d7a4340f64ef891e6f3acf7198df4",
+          "prov_195fbc057a802f32d1bd410696a0094c"
+        ],
+        "retrieved_source": true,
+        "retrieved_target": true,
+        "published": [
+          {
+            "relationship_id": "rel_480c4f8b4ca83254f451017b3761dd30",
+            "source": "bct-2026-10-fr Article 52",
+            "relation_type": "repeals",
+            "target": "bct-2018-16-fr (document)",
+            "status": "candidate",
+            "lexical_match": true
+          },
+          {
+            "relationship_id": "rel_39a6088f2e3d234a659ecafd55c19cc3",
+            "source": "bct-2026-10-fr Article 52",
+            "relation_type": "supersedes",
+            "target": "bct-2018-16-fr (document)",
+            "status": "candidate",
+            "lexical_match": true
+          }
+        ],
+        "rejected": 0,
+        "correct": true,
+        "errors": [],
+        "citation_ok": true
+      },
+      "model_call": {
+        "outcome": "ok",
+        "model_id": "muse-spark-1.3",
+        "response_id": "chatcmpl-01a18d63-96d7-7529-abd1-a523607907bb",
+        "http_status": 200,
+        "finish_reason": "stop",
+        "refusal": null,
+        "usage": {
+          "prompt_tokens": 3260,
+          "completion_tokens": 1922,
+          "total_tokens": 5182,
+          "completion_tokens_details": {
+            "reasoning_tokens": 1374
+          }
+        },
+        "latency_ms": 8934.9,
+        "error": null,
+        "max_completion_tokens": 2048,
+        "reasoning_effort": "low",
+        "raw_text": "{\"relationships\": [{\"quotes\": [{\"provision_id\": \"prov_c54fee71ede561dbe9964b904817d664\", \"text\": \"La pr\\u00e9sente circulaire abroge et remplace la circulaire n\\u00b02018-16 du \\n31 d\\u00e9cembre 2018 , relative aux r\\u00e8gles r\\u00e9gissant l\\u2019activit\\u00e9 et le fonctionnement \\ndes \\u00e9tablissements de paiement et entre en vigueur dans un d\\u00e9lai de trois mois \\u00e0 \\npartir de la date de sa publication.\"}], \"rationale\": \"L'article 52 de la circulaire n\\u00b02026-10 d\\u00e9clare express\\u00e9ment abroger la circulaire n\\u00b02018-16 du 31 d\\u00e9cembre 2018.\", \"relation_type\": \"repeals\", \"source_provision_id\": \"prov_c54fee71ede561dbe9964b904817d664\", \"target_id\": \"doc_3403306ac786e03ea0bad99ebc126629\", \"target_kind\": \"document\"}, {\"quotes\": [{\"provision_id\": \"prov_c54fee71ede561dbe9964b904817d664\", \"text\": \"La pr\\u00e9sente circulaire abroge et remplace la circulaire n\\u00b02018-16 du \\n31 d\\u00e9cembre 2018 , relative aux r\\u00e8gles r\\u00e9gissant l\\u2019activit\\u00e9 et le fonctionnement \\ndes \\u00e9tablissements de paiement et entre en vigueur dans un d\\u00e9lai de trois mois \\u00e0 \\npartir de la date de sa publication.\"}], \"rationale\": \"L'article 52 de la circulaire n\\u00b02026-10 d\\u00e9clare express\\u00e9ment remplacer la circulaire n\\u00b02018-16 du 31 d\\u00e9cembre 2018.\", \"relation_type\": \"supersedes\", \"source_provision_id\": \"prov_c54fee71ede561dbe9964b904817d664\", \"target_id\": \"doc_3403306ac786e03ea0bad99ebc126629\", \"target_kind\": \"document\"}]}"
+      },
+      "rejected": [],
+      "content_digest": "785a15118c0958f593635f3adff62b4e90f2dc53935e65ffbbee27148926ec04",
+      "report": {
+        "document_ids": [
+          "doc_fe31431614e7eeee7b163583c02af0e3",
+          "doc_3403306ac786e03ea0bad99ebc126629"
+        ],
+        "evidence": [
+          {
+            "char_end": 1428,
+            "char_start": 1158,
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "evidence_id": "ev_28b13c84ebf8ac3598da07f0e2151b7e",
+            "kind": "verified_extract",
+            "page_number": 33,
+            "quote": "La présente circulaire abroge et remplace la circulaire n°2018-16 du \n31 décembre 2018 , relative aux règles régissant l’activité et le fonctionnement \ndes établissements de paiement et entre en vigueur dans un délai de trois mois à \npartir de la date de sa publication."
+          }
+        ],
+        "generated_at": "2026-10-30T15:17:56.439064Z",
+        "inferences": [
+          {
+            "inference_id": "inf_bc02251f97ff5598bc0d26f0f225b49f",
+            "kind": "model_inference",
+            "model_id": "muse-spark-1.3",
+            "statement": "L'article 52 de la circulaire n°2026-10 déclare expressément abroger la circulaire n°2018-16 du 31 décembre 2018.",
+            "supporting_evidence_ids": [
+              "ev_28b13c84ebf8ac3598da07f0e2151b7e"
+            ]
+          },
+          {
+            "inference_id": "inf_8b6ea4ef585068a32a23b40179e18366",
+            "kind": "model_inference",
+            "model_id": "muse-spark-1.3",
+            "statement": "L'article 52 de la circulaire n°2026-10 déclare expressément remplacer la circulaire n°2018-16 du 31 décembre 2018.",
+            "supporting_evidence_ids": [
+              "ev_28b13c84ebf8ac3598da07f0e2151b7e"
+            ]
+          }
+        ],
+        "provisions": [
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "preamble",
+            "label": "(préambule)",
+            "number": null,
+            "parent_provision_id": null,
+            "provision_id": "prov_d10d2d0ac395e8a2056c0eb3def8c8a5",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 1404,
+                "char_start": 0,
+                "page_number": 1
+              },
+              {
+                "char_end": 1271,
+                "char_start": 0,
+                "page_number": 2
+              }
+            ],
+            "text": "   \n \n 1  \n \n \n                                                                                   Tunis, le 25 septembre 2026. \n \n \n \n \nCirculaire de la Banque Centrale de Tunisie n°2026-10 \n \nObjet : Règles régissant l’activité et le fonctionnement des établissements de \npaiement. \nLe Gouverneur de la Banque Centrale de Tunisie, \nVu la loi organique n°2004 -63 du 27 juillet 2004 , relative à la protection des \ndonnées à caractère personnel,  \nVu la loi organique n°2015 -26 du 7 août 2015, relative à la lutte contre le \nterrorisme et à la répression du blanchiment d’argent telle que modifiée et \ncomplétée par la loi organique n°2019-9 du 23 janvier 2019,  \nVu la loi n°2000 -83 du 9 ao ût 2000, relative aux échanges et au commerce \nélectroniques, \nVu la loi n° 2005-51 du 27 juin 2005, relative au transfert électronique de fonds,  \nVu la loi n°2016 -35 du 25 avril 2016 , portant fixation du statut de la Banque \nCentrale de Tunisie notamment son article 8,  \nVu la loi n°2016-48 du 11 juillet 2016, relative aux banques et aux établissements \nfinanciers notamment ses articles 20 et 21,  \nVu le décret-loi n°2023-17 du 11 mars 2023, relatif à la cybersécurité, \nVu la circulaire aux établissements de crédit n° 2006-1 du 28 mars 2006, relative \nà la réglementation des conditions des opérations d’externalisation, \nVu la circulaire aux établissements de crédit n°2006-19 du 28 novembre 2006 , \n   \n \n 2  \n \nrelative au contrôle interne dans les établissements de crédit,  \nVu la circulaire aux banques et aux établissements financiers n°2017 -6 du 31 \njuillet 2017, relative au reporting comptable, prudentiel et statistique à la Banque \nCentrale de Tunisie,   \nVu la circulaire aux banques et aux établissements financiers n°2017 -08 du 19 \nseptembre 2017, relative aux dispositif et règles de contrôle interne en matière \nde lutte contre le blanchiment d’argent, le financement du terrorisme et le \nfinancement de la prolifération des armes de destruction massive, telle que \nmodifiée et comp létée par les textes subséquents et notamment la circulaire \nn°2025-17 du 22 décembre 2025,  \nVu la circulaire de la Banque Centrale de Tunisie n°2018 -16 du 31 décembre \n2018, relative aux règles régissant l’activité et le fonctionnement des \nétablissements de paiement, \nVu la circulaire de la Banque Centrale de Tunisie n°2020 -11 du 18 mai 2020, \nrelative aux  conditions de fourniture des services de paiement mobile \ndomestique, \nVu l’avis n° 2026-10 du Comité de Contrôle de la Conformité en date du 25 \nseptembre 2026 , tel que prévu par l’article 42 de la loi n°2016 -35 du 25 avril \n2016 portant fixation du statut de la Banque Centrale de Tunisie. \nDécide : \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "article",
+            "label": "Article premier",
+            "number": "1",
+            "parent_provision_id": null,
+            "provision_id": "prov_7a77a29fc7dddcb8f6558123175eaa61",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 1689,
+                "char_start": 1271,
+                "page_number": 2
+              },
+              {
+                "char_end": 13,
+                "char_start": 0,
+                "page_number": 3
+              }
+            ],
+            "text": "Article premier : La présente circulaire a pour objet de fixer les conditions \nd’application des articles 20 et 21 de la loi n°2016-48 relative aux banques et aux \nétablissements financiers.   Elle définit notamment les conditions d’exercice de \nl’activité des établissements de paiement et les exigences spécifiques en matière \nde gouvernance , de contrôle interne et  de reporting à la Banque Centrale de \nTunisie.  \n   \n \n 3  \n \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "article",
+            "label": "Article  47",
+            "number": "47",
+            "parent_provision_id": null,
+            "provision_id": "prov_3318eb490cae80d2c574dec62c4ec8e1",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 1780,
+                "char_start": 1063,
+                "page_number": 30
+              },
+              {
+                "char_end": 751,
+                "char_start": 0,
+                "page_number": 31
+              }
+            ],
+            "text": "Article  47 :  En application de l’article 8 de la présente circulaire, le s dossiers \ndes nominations à transmettre à la Banque Centrale de Tunisie doi vent \ncomporter :  \n- Une lettre de motivation signée par le président d u conseil \nd’administration ou de surveillance relatant notamment les motifs du \nchoix de la personne en question, sa contribution attendue au \nrenforcement des compétences collective des autres membres du conseil \nd’administration ou de surveillance ou de l’organe de direction.  \n- Un curriculum vitae détaillé de la personne désignée. \n- Une copie d’une pièce d’identité de la personne désignée. \n- Un extrait du casier judiciaire de la personne désignée délivré depuis \nmoins de 3 mois. \n   \n \n 31  \n \n- Une déclaration sur l’honneur signée par la personne désignée par \nlaquelle elle atteste qu’elle n’est pas frappée par les interdictions légales, \nétablie suivant le modèle en annexe n° 6 à la présente circulaire. \n- Une déclaration sur l’honneur signée par le président d u conseil  \nd’administration ou de surveillance , par laquelle il atteste que la \npersonne désignée ne se trouve pas en situation de conflit d’intérêts. \nLa Banque Centrale de Tunisie peut, dans le cadre de l’examen de ce dossier, \ndemander aux établissements de paiement de lui communiquer tout \nrenseignement ou document complémentaire qu’elle juge utile et ce, dans un \ndélai n’excédant pas quinze (15) jours à  compter de la date de  réception du \ndossier. \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "article",
+            "label": "Article 52",
+            "number": "52",
+            "parent_provision_id": null,
+            "provision_id": "prov_c54fee71ede561dbe9964b904817d664",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 1562,
+                "char_start": 1145,
+                "page_number": 33
+              },
+              {
+                "char_end": 16,
+                "char_start": 0,
+                "page_number": 34
+              }
+            ],
+            "text": "Article 52:  La présente circulaire abroge et remplace la circulaire n°2018-16 du \n31 décembre 2018 , relative aux règles régissant l’activité et le fonctionnement \ndes établissements de paiement et entre en vigueur dans un délai de trois mois à \npartir de la date de sa publication.  \n                                           Le Gouverneur, \n  \n                                                Fethi Zouhaier Nouri \n   \n \n 34  \n \n \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "annex",
+            "label": "Annexe 1 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre",
+            "number": "1",
+            "parent_provision_id": null,
+            "provision_id": "prov_c6f8b3812e3b03419ae244cef0abb77e",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 591,
+                "char_start": 16,
+                "page_number": 34
+              },
+              {
+                "char_end": 16,
+                "char_start": 0,
+                "page_number": 35
+              }
+            ],
+            "text": "Annexe 1 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre \n2026  \nELEMENTS D’IDENTIFICATION DES CLIENTS TITULAIRES DES COMPTES DE \nPAIEMENT DE NIVEAU 1 \n \n- Nom et prénom \n- Date et lieu de naissance \n- Nationalité \n- Profession \n- Numéro de téléphone \n- Numéro de la carte nationale d’identité ou numéro du passeport ou de la carte de \nséjour ou tout document d’identité délivré par une autorité étrangère reconnue  \n- Adresse officielle si différente de la carte nationale d’identité \n- Revenu mensuel estimé  \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n \n   \n \n 35  \n \n \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "annex",
+            "label": "Annexe 2 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre",
+            "number": "2",
+            "parent_provision_id": null,
+            "provision_id": "prov_0f8fc0e7521a6e83062f7dd6f8d09ae2",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 896,
+                "char_start": 16,
+                "page_number": 35
+              },
+              {
+                "char_end": 14,
+                "char_start": 0,
+                "page_number": 36
+              }
+            ],
+            "text": "Annexe 2 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre \n2026 \nELEMENTS D’IDENTIFICATION DES CLIENTS TITULAIRES DES COMPTES DE \nPAIEMENT DE NIVEAU 2 \n \nI- Pour les personnes physiques \n- Nom et prénom \n- Date et lieu de naissance \n- Nationalité \n- Profession \n- Numéro de la carte nationale d’identité ou numéro du passeport ou de la carte de \nséjour ou tout document d’identité délivré par une autorité étrangère reconnue  \n- Adresse officielle \n- Revenu mensuel estimé \n \nII -Pour les personnes morales \n- Dénomination ou raison sociale \n- Adresse du siège social \n- Forme juridique \n- Mandats et pouvoirs (Nom, prénom de la personne habilitée à mouvementer le \ncompte et spécimen de signature) \n- Extrait récent du registre national des entreprises \n- Bénéficiaire(s) effectif(s)  \n- Tout élément permettant d’apprécier la situation financière \n \n \n   \n \n 36  \n \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "annex",
+            "label": "Annexe 3 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre",
+            "number": "3",
+            "parent_provision_id": null,
+            "provision_id": "prov_658d7a4340f64ef891e6f3acf7198df4",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 947,
+                "char_start": 14,
+                "page_number": 36
+              },
+              {
+                "char_end": 16,
+                "char_start": 0,
+                "page_number": 37
+              }
+            ],
+            "text": "Annexe 3 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre \n2026 \nELEMENTS D’IDENTIFICATION DES CLIENTS TITULAIRES DES COMPTES DE \nPAIEMENT DE NIVEAU 3 \n \nI- Pour les personnes physiques \n- Nom et prénom \n- Date et lieu de naissance \n- Nationalité \n- Numéro de la  carte nationale d’identité ou numéro du passeport ou de la carte de \nséjour ou tout document d’identité délivré par une autorité étrangère reconnue  \n- Adresse officielle \n- Profession exercée  \n- Déclaration de la source du revenu \n \nII -Pour les personnes morales \n \n- Dénomination ou raison sociale \n- Adresse du siège social \n- Forme juridique \n- Nature d’activité \n- Extrait récent du registre national des entreprises  \n- Mandats et pouvoirs (Nom, prénom de la personne habilitée à mouvementer le \ncompte et spécimen de signature) \n- Tout élément permettant d’apprécier la situation financière \n- Bénéficiaire(s) effectif(s)  \n \n \n \n \n \n   \n \n 37  \n \n \n"
+          },
+          {
+            "document_id": "doc_fe31431614e7eeee7b163583c02af0e3",
+            "kind": "annex",
+            "label": "Annexe 4 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre",
+            "number": "4",
+            "parent_provision_id": null,
+            "provision_id": "prov_195fbc057a802f32d1bd410696a0094c",
+            "quoted": false,
+            "segments": [
+              {
+                "char_end": 1081,
+                "char_start": 16,
+                "page_number": 37
+              },
+              {
+                "char_end": 18,
+                "char_start": 0,
+                "page_number": 38
+              }
+            ],
+            "text": "Annexe 4 à la circulaire de la Banque Centrale de Tunisie n° 2026-10 du 25 septembre \n2026 \n \nELEMENTS D’IDENTIFICATION DES TITULAIRES DE COMPTES COMMERÇANTS \n \nI- Pour les commerçants personnes physiques \n- Nom et prénom \n- Date et lieu de naissance \n- Nationalité \n- Numéro du carte nationale d’identité ou numéro du passeport  \n- Adresse officielle et adresse de l’activité commerciale (si différente) \n- Identifiant au Registre National des Entreprises \n- Source des revenus liés à l’activité \n- Bénéficiaire effectif \n \nII -Pour les commerçants personne morale \n- Dénomination ou raison sociale \n- Forme juridique \n- Objet social, nature de l’activité et secteur d’activité \n- Adresse du siège social \n- Identifiant au registre national des entreprises \n- Identité du/des représentant(s) légal(aux) et des personnes habilitées à faire \nfonctionner le compte \n- Mandats et pouvoirs  \n- Le ou les bénéficiaires effectifs  \n- Tout élément permettant d’apprécier la situation financière \n- Zone géographique d’activité \n- Profil transactionnel attendu (12 mois) \n \n   \n \n 38  \n \n \n \n"
+          }
+        ],
+        "question": "Quelle circulaire la circulaire n°2026-10 abroge-t-elle ou remplace-t-elle ?",
+        "relationships": [
+          {
+            "basis": "inferred",
+            "evidence_ids": [
+              "ev_28b13c84ebf8ac3598da07f0e2151b7e"
+            ],
+            "inference_id": "inf_bc02251f97ff5598bc0d26f0f225b49f",
+            "lexical_match": {
+              "evidence_id": "ev_28b13c84ebf8ac3598da07f0e2151b7e",
+              "match_end": 65,
+              "match_start": 58,
+              "rule": "regulagraph.lexical.v1"
+            },
+            "relation_type": "repeals",
+            "relationship_id": "rel_480c4f8b4ca83254f451017b3761dd30",
+            "source_provision_id": "prov_c54fee71ede561dbe9964b904817d664",
+            "status": "candidate",
+            "target_document_id": "doc_3403306ac786e03ea0bad99ebc126629",
+            "target_provision_id": null
+          },
+          {
+            "basis": "inferred",
+            "evidence_ids": [
+              "ev_28b13c84ebf8ac3598da07f0e2151b7e"
+            ],
+            "inference_id": "inf_8b6ea4ef585068a32a23b40179e18366",
+            "lexical_match": {
+              "evidence_id": "ev_28b13c84ebf8ac3598da07f0e2151b7e",
+              "match_end": 65,
+              "match_start": 58,
+              "rule": "regulagraph.lexical.v1"
+            },
+            "relation_type": "supersedes",
+            "relationship_id": "rel_39a6088f2e3d234a659ecafd55c19cc3",
+            "source_provision_id": "prov_c54fee71ede561dbe9964b904817d664",
+            "status": "candidate",
+            "target_document_id": "doc_3403306ac786e03ea0bad99ebc126629",
+            "target_provision_id": null
+          }
+        ],
+        "report_id": "rep_0f6f59197644c2db05330c885dd148da"
+      }
+    }
+  ]
+}

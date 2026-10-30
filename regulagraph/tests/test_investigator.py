@@ -322,3 +322,49 @@ def test_replay_adapter_reports_exhaustion() -> None:
     adapter.complete([])
     with pytest.raises(ModelProviderError):
         adapter.complete([])
+
+
+# Retrieval: one-hop internal references from a named article (E12 fix) -------
+
+def test_internal_article_references_parsing() -> None:
+    from app.services.investigator import internal_article_references
+
+    assert internal_article_references("En application de l’article 8 de la présente circulaire,") == {"8"}
+    assert internal_article_references("définis aux articles 15 et 17 de la présente circulaire") == {"15", "17"}
+    assert internal_article_references("l'article 84 de la loi n°2016-48") == set()  # another instrument
+    assert internal_article_references("l’article 1 7 de la présente") == set()  # split digits are not guessed
+
+
+def test_article_cited_by_named_article_is_retrieved_without_shared_words(make_pdf, settings) -> None:
+    pages = [
+        "Article 1 : Objet general du texte.",
+        "Article 8 : Les nominations des dirigeants sont soumises a autorisation prealable.",
+        "Article 47 : En application de l article 8 de la presente circulaire, le dossier comporte une lettre.",
+        "ANNEXE 1\nArticle 8 : Disposition de l annexe sans rapport.",
+    ] + [f"Article {n} : Le dossier comporte une lettre et des pieces numero {n}." for n in range(48, 60)]
+    data = make_pdf(pages)
+    doc = attach_metadata(extract_pdf_bytes(data, filename="c.pdf"), _entry("c", "Circulaire n°2026-77", data))
+    provs = segment_provisions(doc)
+    q = "En application de quel article de la circulaire n°2026-77 l'article 47 est-il pris ?"
+    chosen = retrieve(q, provs, {doc.document.document_id: doc}, max_provisions=4, max_chars=10_000)
+    labels = [(p.label, p.parent_provision_id is None) for p in chosen]
+    assert ("Article 47", True) in labels
+    assert ("Article 8", True) in labels  # the body article it cites
+    assert ("Article 8", False) not in labels  # not the annex's article with the same number
+
+
+def test_named_articles_outrank_articles_they_cite(make_pdf, settings) -> None:
+    """E13 regression: Article 35 cites 23, 29 and 17; the question names 35 and 17."""
+    pages = [
+        "Article 17 : Plafonds.",
+        "Article 23 : Le compte commercant est ouvert aux commercants acceptant des paiements.",
+        "Article 29 : Les agents de paiement et le compte agent et les commercants.",
+        "Article 35 : Le compte agent est distinct du compte vise a l article 23 de la presente circulaire, "
+        "les services de l article 29 de la presente circulaire et les regles de l article 17 de la presente "
+        "circulaire ne sont pas applicables au compte agent.",
+    ]
+    data = make_pdf(pages)
+    doc = attach_metadata(extract_pdf_bytes(data, filename="c.pdf"), _entry("c", "Circulaire n°2026-77", data))
+    q = "L'article 35 de la circulaire n°2026-77 abroge-t-il ou contredit-il l'article 17 de cette circulaire ?"
+    chosen = retrieve(q, segment_provisions(doc), {doc.document.document_id: doc}, max_provisions=2, max_chars=10_000)
+    assert [p.label for p in chosen] == ["Article 17", "Article 35"]

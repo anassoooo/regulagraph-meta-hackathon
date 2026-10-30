@@ -1,5 +1,5 @@
 {
-  "description": "Manually written relationship cases over the French BCT corpus in data/manifest.json. Each gold quote is copied verbatim from the extracted text (pypdf 6.21.2, plain mode) and is checked automatically by tests/test_eval_cases.py. Quotations are short excerpts reproduced exactly, with the BCT site as source.",
+  "description": "Manually written relationship cases (E13 added for the live pilot) over the French BCT corpus in data/manifest.json. Each gold quote is copied verbatim from the extracted text (pypdf 6.21.2, plain mode) and is checked automatically by tests/test_eval_cases.py. Quotations are short excerpts reproduced exactly, with the BCT site as source.",
   "review": {
     "written_by": "implementation (Sprint 2), from reading the extracted French text",
     "reviewed_by": null,
@@ -162,6 +162,18 @@
         "evidence_quote": "En application de l’article 8 de la présente circulaire"
       },
       "notes": "'En application de l'article 8' makes Article 47 the source. Article 8 -> Article 47 is a direction error."
+    },
+    {
+      "id": "E13",
+      "phenomenon": "negation",
+      "polarity": "negative",
+      "documents": ["bct-2026-10-fr"],
+      "question": "L'article 35 de la circulaire n°2026-10 abroge-t-il ou contredit-il l'article 17 de cette circulaire ?",
+      "forbidden": [
+        {"source_doc": "bct-2026-10-fr", "source_number": "35", "target_doc": "bct-2026-10-fr", "target_number": "17",
+         "types": ["amends", "repeals", "supersedes", "conflicts_with"]}
+      ],
+      "notes": "Added for the live pilot (negative counterpart of E04). Article 35 says the caps of Article 17 'ne sont pas applicables au compte agent': a qualified reference that narrows scope. It does not amend, repeal, supersede or contradict Article 17. A 'references' relationship is allowed and not counted as an error."
     }
   ]
 }

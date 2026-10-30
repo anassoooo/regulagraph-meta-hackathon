@@ -154,6 +154,7 @@ class CaseResult(BaseModel):
     phenomenon: str
     polarity: str
     model_outcome: str
+    retrieved_provision_ids: list[str] = Field(default_factory=list)
     retrieved_source: bool | None = None
     retrieved_target: bool | None = None
     published: list[dict[str, Any]]
@@ -222,6 +223,17 @@ def score_case(case: EvalCase, outcome: InvestigationOutcome, view: CorpusView) 
         if correct and citation_ok is False:
             correct = False
     else:
+        shown = set(outcome.retrieved_provision_ids)
+        sources_needed = [
+            view.find(f.source_doc, "article", f.source_number, False).provision_id
+            for f in case.forbidden if f.source_number
+        ]
+        retrieved_source = all(p in shown for p in sources_needed) if sources_needed else None
+        targets_needed = [
+            view.find(f.target_doc, "article", f.target_number, False).provision_id
+            for f in case.forbidden if f.target_number
+        ]
+        retrieved_target = all(p in shown for p in targets_needed) if targets_needed else None
         for r in report.relationships:
             src = provs[r.source_provision_id]
             tgt = provs.get(r.target_provision_id) if r.target_provision_id else None
@@ -239,7 +251,8 @@ def score_case(case: EvalCase, outcome: InvestigationOutcome, view: CorpusView) 
             correct = False
     return CaseResult(
         case_id=case.id, phenomenon=case.phenomenon, polarity=case.polarity,
-        model_outcome=outcome.model_call.outcome, retrieved_source=retrieved_source,
+        model_outcome=outcome.model_call.outcome, retrieved_provision_ids=outcome.retrieved_provision_ids,
+        retrieved_source=retrieved_source,
         retrieved_target=retrieved_target, published=_summaries(report, view),
         rejected=len(outcome.rejected), correct=correct, errors=errors, citation_ok=citation_ok,
     )

@@ -5,15 +5,15 @@
     "max_prompt_chars": 24000
   },
   "summary": {
-    "probes": 45,
+    "probes": 46,
     "accept_as_expected": 7,
     "accept_total": 7,
     "reject_as_expected": 24,
     "reject_total": 24,
-    "undetectable_published": 14,
-    "undetectable_total": 14,
+    "undetectable_published": 15,
+    "undetectable_total": 15,
     "retrieval_source_hits": 7,
-    "retrieval_target_hits": 4,
+    "retrieval_target_hits": 5,
     "retrieval_target_total": 5,
     "retrieval_cases": 7
   },
@@ -44,14 +44,14 @@
       "source_retrieved": true,
       "target_retrieved": true,
       "retrieved": 8,
-      "prompt_chars": 14300
+      "prompt_chars": 14805
     },
     {
       "case_id": "E06",
       "source_retrieved": true,
       "target_retrieved": true,
       "retrieved": 8,
-      "prompt_chars": 18984
+      "prompt_chars": 18813
     },
     {
       "case_id": "E07",
@@ -63,9 +63,9 @@
     {
       "case_id": "E12",
       "source_retrieved": true,
-      "target_retrieved": false,
+      "target_retrieved": true,
       "retrieved": 8,
-      "prompt_chars": 11890
+      "prompt_chars": 11798
     }
   ],
   "results": [
@@ -427,6 +427,14 @@
       "expectation": "reject",
       "published": false,
       "rejection": "quote_outside_related",
+      "as_expected": true
+    },
+    {
+      "case_id": "E13",
+      "probe": "forbidden_0_with_real_quote",
+      "expectation": "undetectable",
+      "published": true,
+      "rejection": null,
       "as_expected": true
     }
   ]

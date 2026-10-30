@@ -10,7 +10,7 @@ RegulaGraph is an AI agent that investigates the impact of public Central Bank o
 4. finalization;
 5. a manually written evaluation set.
 
-Every relationship is published as **`candidate`**: nothing is ever confirmed. **No live Muse call has been made from this repository yet.** The opt-in smoke test is ready; see [Live Muse calls](#live-muse-calls-opt-in-paid). Graph storage and a frontend are out of scope.
+Every relationship is published as **`candidate`**: nothing is ever confirmed. **Live Muse calls so far:** one smoke test and a two-case pilot (E01, E13), all HTTP 200, recorded in `eval/results/` and summarised in [eval/README.md](eval/README.md). The other evaluation cases have not been run live. Graph storage and a frontend are out of scope.
 
 ## Layout
 
@@ -31,7 +31,7 @@ app/
   services/investigator.py     retrieval -> Muse proposal -> validation -> finalized report
   services/evaluation.py       evaluation cases, scoring, structural probes
 data/manifest.json             corpus: URLs, dates, SHA-256, extraction notes (PDFs not committed)
-eval/cases.json                12 manually written cases (positive and negative)
+eval/cases.json                13 manually written cases (positive and negative)
 eval/results/                  recorded evaluation runs
 scripts/                       fetch_corpus, smoke_test, investigate, run_eval
 docs/                          EXTRACTION_QUALITY.md, SPRINT2_REQUIREMENTS.md
@@ -72,7 +72,7 @@ python scripts/investigate.py "Quelle circulaire la circulaire n°2026-10 abroge
 python scripts/investigate.py "Quelle circulaire la circulaire n°2026-10 abroge-t-elle ou remplace-t-elle ?" \
     --docs bct-2026-10-fr bct-2018-16-fr --replay examples/replay_e01_handwritten.json
 
-# Validator evaluation over all 12 cases (no model):
+# Validator evaluation over all 13 cases (no model):
 python scripts/run_eval.py structural
 ```
 
@@ -90,23 +90,23 @@ Nothing here can check your credits, so every live entry point needs `META_INFER
 
 ```bash
 python scripts/smoke_test.py --confirm-paid-call                 # 1 request, <=64 tokens out (< $0.001)
-python scripts/run_eval.py live --confirm-paid-call [--case E01] # 1 request per case
+python scripts/run_eval.py live --confirm-paid-call --case E01 --max-completion-tokens 2048   # 1 request per named case; --case is required
 python scripts/investigate.py "<question>" --docs ... --live --confirm-paid-call
 ```
 
 **Per-request bounds:**
 
 - at most `META_MAX_PROMPT_CHARS` characters of provision text, 24,000 by default (about 6-8k input tokens);
-- at most `META_MAX_COMPLETION_TOKENS` tokens, 1,024 by default, which per the API docs covers output plus reasoning;
+- at most `META_MAX_COMPLETION_TOKENS` tokens, 1,024 by default, which per the API docs covers output plus reasoning. **The pilot showed this default is too low:** E01 used 1,922 completion tokens, 1,374 of them reasoning. Use `--max-completion-tokens 2048` or set the env value;
 - `temperature=0`, `reasoning_effort="low"`, and a strict JSON schema (`response_format`).
 
-At default limits, one investigation therefore costs about $0.015 or less.
+At a 2,048-token cap, one investigation costs about $0.02 or less. The two pilot calls cost about $0.012 and $0.010.
 
 **What gets recorded:** each call stores the model ID, token usage (including reasoning tokens), latency, HTTP status, finish reason, refusal and rate-limit headers. The key is never logged or written.
 
 ## How an investigation works (`services/investigator.py`)
 
-1. **Retrieve.** Retrieval is BM25 over the question, with bonuses for provisions that cite another corpus document, for documents the question names, and for articles it names. It is bounded by provision count and character budget, and provisions are never truncated.
+1. **Retrieve.** Retrieval is BM25 over the question, with bonuses for provisions that cite another corpus document and for documents the question names. Ranking is tiered: articles the question names come first, then the body articles they cite within the same circular, then everything else by score. Retrieval is bounded by provision count and character budget, and provisions are never truncated.
 2. **Prompt.** Muse sees document and provision IDs and text in `<provision>` elements, which are marked as data, not instructions. It must answer in a strict JSON schema with source, type, target (a provision or a whole document), verbatim quotes and a rationale. There is **no confidence field**.
 3. **Model failures.** Refusal, `finish_reason=length` (never parsed), `content_filter`, empty content, malformed JSON, provider errors and disabled inference all produce a finalized report with **no relationships**, plus a recorded outcome.
 4. **Per-proposal checks.** Each proposal is rejected (with a recorded reason) if:
@@ -122,7 +122,7 @@ At default limits, one investigation therefore costs about $0.015 or less.
 
 ## Evaluation (`eval/`)
 
-`eval/cases.json` holds 12 cases: 7 positive and 5 negative. They cover:
+`eval/cases.json` holds 13 cases: 7 positive and 6 negative. They cover:
 
 - an explicit repeal;
 - relationship direction and type;
@@ -138,7 +138,7 @@ Gold quotes are checked automatically against the extracted text. The cases were
 **Recorded results** (`eval/results/`):
 
 - **Structural probes** (`python scripts/run_eval.py structural`, no model). Hand-made proposals go through the real pipeline. See `eval/README.md` for the recorded run. Gold answers are accepted. Paraphrased quotes, fabricated targets, reversed directions and quotes taken from unrelated provisions are rejected. Wrong relation types and forbidden links that cite a real quote **are published as candidates**, which is the measured limit of structural validation.
-- **Live model evaluation: not run.** No Muse results exist yet. None are claimed.
+- **Live pilot:** two cases, E01 and E13, both passed. E13 has a caveat: its target was not in the prompt because of a retrieval regression, since fixed. The details are in `eval/README.md`. Two cases are not a benchmark, and no accuracy is claimed.
 
 ## Configuration
 
@@ -178,7 +178,7 @@ Gold quotes are checked automatically against the extracted text. The cases were
 
 ## Known limitations
 
-- **No live run.** Muse output quality is unmeasured, so prompt quality, retrieval recall on real questions and refusal behaviour are unknown.
+- **Live evidence is thin.** One smoke test and two pilot cases. Model quality across the evaluation set is unmeasured.
 - **Semantic errors pass validation.** A wrong relation type, or a link to the wrong but real target, is published as a candidate. Review is required before any use.
 - **Retrieval is lexical** (BM25 plus bonuses) and may miss the relevant provision. The evaluation records retrieval hits per case.
 - **Segmentation fits BCT French layouts only.** Headings must start a line and carry a separator. Annexes are recognised only at the top of a page. Replacement text for another instrument's annex is not marked as quoted.

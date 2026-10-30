@@ -162,6 +162,13 @@ class ModelCallRecord(BaseModel):
     usage: TokenUsage | None = None
     latency_ms: float | None = None
     error: dict[str, Any] | None = None
+    max_completion_tokens: int | None = None
+    reasoning_effort: str | None = None
+    raw_text: str | None = Field(default=None, description="Model output as received (truncated), for diagnosis.")
+
+
+MAX_RAW_TEXT_CHARS = 20_000
+DEFAULT_REASONING_EFFORT = "low"
 
 
 class InvestigationOutcome(BaseModel):
@@ -208,6 +215,14 @@ CROSS_REFERENCE_BONUS = 3.0  # provision names another corpus document
 NAMED_DOCUMENT_BONUS = 2.0  # provision belongs to a document the question names
 NAMED_ARTICLE_BONUS = 4.0  # article whose number the question names
 _ARTICLE_IN_QUESTION = re.compile(r"(?i)\barticles?\s+(\d+|premier|1er)\b")
+_INTERNAL_REFERENCE = re.compile(
+    r"(?i)\barticles?\s+(?P<nums>\d+(?:\s*(?:,|et)\s*\d+)*)\s+de\s+la\s+pr[ée]sente\s+circulaire"
+)
+
+
+def internal_article_references(text: str) -> set[str]:
+    """Article numbers cited as '... article(s) N [, M et K] de la présente circulaire'."""
+    return {n for m in _INTERNAL_REFERENCE.finditer(text) for n in re.findall(r"\d+", m.group("nums"))}
 
 
 def retrieve(
@@ -218,10 +233,12 @@ def retrieve(
     max_provisions: int = DEFAULT_MAX_PROVISIONS,
     max_chars: int,
 ) -> list[Provision]:
-    """Rank provisions with BM25 over the question terms, plus two fixed bonuses.
+    """Rank provisions with BM25 over the question terms, plus fixed bonuses.
 
-    Bonuses: the provision names another corpus document's reference number,
-    or it belongs to a document the question names. Structural titles are
+    Bonuses: the provision names another corpus document's reference number;
+    it belongs to a document the question names; it is an article the question
+    names; or it is a body article that a named article cites within its own
+    circular (one hop). Structural titles are
     never retrieved. Deterministic: ties are broken by document order and
     position. Provisions longer than the remaining character budget are
     skipped, never truncated, because quotes must be located in the full text.
@@ -254,6 +271,18 @@ def retrieve(
             df[t] = df.get(t, 0) + 1
     idf = {t: math.log(1 + (n - c + 0.5) / (c + 0.5)) for t, c in df.items()}
 
+    def _is_named(p: Provision) -> bool:
+        return p.kind == "article" and p.number in named_articles and (not named or p.document_id in named)
+
+    def _is_cited(p: Provision) -> bool:  # body articles only: "présente circulaire" is not an annex
+        return p.kind == "article" and p.parent_provision_id is None and (p.document_id, p.number) in cited_by_named
+
+    # One hop: body articles that a named article cites within its own circular
+    # ("en application de l'article 8 de la présente circulaire") get the same bonus.
+    cited_by_named = {
+        (p.document_id, num) for p in provisions if _is_named(p) for num in internal_article_references(p.text)
+    }
+
     def score(p: Provision) -> float:
         if p.kind == "heading":
             return 0.0
@@ -264,11 +293,15 @@ def retrieve(
                 s += CROSS_REFERENCE_BONUS
         if p.document_id in named and s > 0:
             s += NAMED_DOCUMENT_BONUS
-        if p.kind == "article" and p.number in named_articles and (not named or p.document_id in named):
+        if _is_named(p) or _is_cited(p):
             s += NAMED_ARTICLE_BONUS
         return s
 
-    ranked = sorted(provisions, key=lambda p: (-score(p), order[p.provision_id]))
+    # Explicit mentions dominate: articles the question names, then the articles they cite, then the rest.
+    def tier(p: Provision) -> int:
+        return 0 if _is_named(p) else 1 if _is_cited(p) else 2
+
+    ranked = sorted(provisions, key=lambda p: (tier(p), -score(p), order[p.provision_id]))
     chosen: list[Provision] = []
     used = 0
     for p in ranked:
@@ -338,6 +371,7 @@ def investigate(
     *,
     max_provisions: int = DEFAULT_MAX_PROVISIONS,
     selected: Sequence[Provision] | None = None,
+    reasoning_effort: str = DEFAULT_REASONING_EFFORT,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
 ) -> InvestigationOutcome:
     """Run one investigation. ``selected`` bypasses retrieval (caller-chosen provisions)."""
@@ -355,7 +389,7 @@ def investigate(
     messages = build_messages(question, retrieved, sources)
     prompt_chars = sum(len(m.content) for m in messages)
 
-    call, items = _call_model(adapter, messages, settings)
+    call, items = _call_model(adapter, messages, settings, reasoning_effort)
     rejected: list[Rejection] = []
     evidence: dict[str, Evidence] = {}
     inferences: dict[str, Inference] = {}
@@ -410,27 +444,30 @@ def investigate(
 
 
 def _call_model(
-    adapter: ModelAdapter, messages: list[ChatMessage], settings: Settings
+    adapter: ModelAdapter, messages: list[ChatMessage], settings: Settings, reasoning_effort: str
 ) -> tuple[ModelCallRecord, list[Any]]:
     model_id = settings.meta_model_id
+    bounds = {"max_completion_tokens": settings.meta_max_completion_tokens, "reasoning_effort": reasoning_effort}
     try:
         result: CompletionResult = adapter.complete(
             messages,
             temperature=0,
             max_completion_tokens=settings.meta_max_completion_tokens,
             response_format=RESPONSE_SCHEMA,
-            reasoning_effort="low",
+            reasoning_effort=reasoning_effort,
         )
     except InferenceDisabledError as exc:
-        return ModelCallRecord(outcome="disabled", model_id=model_id, error=exc.to_dict()), []
+        return ModelCallRecord(outcome="disabled", model_id=model_id, error=exc.to_dict(), **bounds), []
     except InvalidModelRequestError as exc:
-        return ModelCallRecord(outcome="invalid_request", model_id=model_id, error=exc.to_dict()), []
+        return ModelCallRecord(outcome="invalid_request", model_id=model_id, error=exc.to_dict(), **bounds), []
     except ModelProviderError as exc:
         return ModelCallRecord(
-            outcome="provider_error", model_id=model_id, http_status=exc.status_code, error=exc.to_dict()
+            outcome="provider_error", model_id=model_id, http_status=exc.status_code, error=exc.to_dict(), **bounds
         ), []
 
     record = ModelCallRecord(
+        **bounds,
+        raw_text=result.text[:MAX_RAW_TEXT_CHARS] if result.text is not None else None,
         outcome="ok",
         model_id=result.model_id,
         response_id=result.response_id,

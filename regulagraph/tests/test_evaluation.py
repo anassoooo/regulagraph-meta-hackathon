@@ -184,3 +184,45 @@ def test_gold_answers_resolve_to_unique_provisions_and_exact_quotes(real_view, c
 def test_structural_probes_behave_as_documented(real_view, case) -> None:
     results = structural_probes(case, real_view, Settings(_env_file=None))
     assert results and all(r.as_expected for r in results), [r.model_dump() for r in results if not r.as_expected]
+
+
+def test_retrieval_recall_on_real_corpus(real_view) -> None:
+    """Gold source and target provisions are retrieved for every positive case (E12 regression)."""
+    from app.services.evaluation import retrieval_recall
+
+    settings = Settings(_env_file=None)
+    misses = [
+        r.model_dump() for c in load_cases().cases if c.polarity == "positive"
+        for r in [retrieval_recall(c, real_view, settings)]
+        if not r.source_retrieved or r.target_retrieved is False
+    ]
+    assert misses == []
+
+
+def test_named_provisions_of_negative_cases_are_retrieved(real_view) -> None:
+    """E13 regression: a named target must not be crowded out by articles the source cites."""
+    from app.services.investigator import retrieve
+
+    settings = Settings(_env_file=None)
+    for case in [c for c in load_cases().cases if c.polarity == "negative"]:
+        sources, provisions = real_view.scope(case)
+        shown = {p.provision_id for p in retrieve(case.question, [p for ps in provisions.values() for p in ps],
+                                                  sources, max_chars=settings.meta_max_prompt_chars)}
+        for f in case.forbidden:
+            for doc, number in [(f.source_doc, f.source_number), (f.target_doc, f.target_number)]:
+                if number:
+                    assert real_view.find(doc, "article", number, False).provision_id in shown, (case.id, doc, number)
+
+
+def test_live_runner_refuses_without_flag_or_explicit_cases(monkeypatch) -> None:
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "scripts" / "run_eval.py"
+    spec = importlib.util.spec_from_file_location("run_eval", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    monkeypatch.setattr(module, "load_corpus_view", lambda s: pytest.fail("must refuse before loading anything"))
+    settings = Settings(_env_file=None)
+    assert module.run_live(settings, confirmed=False, only=["E01"], reasoning_effort="low") == 2
+    assert module.run_live(settings, confirmed=True, only=[], reasoning_effort="low") == 2

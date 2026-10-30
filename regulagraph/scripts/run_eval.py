@@ -1,7 +1,8 @@
 """Run the evaluation cases in eval/cases.json.
 
     python scripts/run_eval.py structural                      # free: validators only, no model
-    python scripts/run_eval.py live --confirm-paid-call        # paid: one Muse call per case
+    python scripts/run_eval.py live --confirm-paid-call --case E01 [--max-completion-tokens 2048]
+                                                                # paid: one Muse call per named case
 
 ``structural`` feeds hand-made proposals (gold answers and perturbations)
 through the pipeline with a replayed response. It measures what validation
@@ -83,9 +84,12 @@ def run_structural(settings: Settings) -> int:
     return 0 if all(r.as_expected for r in results) else 1
 
 
-def run_live(settings: Settings, confirmed: bool, only: list[str]) -> int:
+def run_live(settings: Settings, confirmed: bool, only: list[str], reasoning_effort: str) -> int:
     if not confirmed:
         print("refusing: pass --confirm-paid-call after checking your Meta credit balance", file=sys.stderr)
+        return 2
+    if not only:
+        print("refusing: name the cases to run with --case (no implicit full run)", file=sys.stderr)
         return 2
     cases = load_cases()
     view = load_corpus_view(settings)
@@ -95,9 +99,12 @@ def run_live(settings: Settings, confirmed: bool, only: list[str]) -> int:
         if only and case.id not in only:
             continue
         sources, provisions = view.scope(case)
-        outcome = investigate(case.question, sources, provisions, adapter, settings)
+        outcome = investigate(case.question, sources, provisions, adapter, settings,
+                              reasoning_effort=reasoning_effort)  # one call, no retry
         scored = score_case(case, outcome, view)
-        results.append({"score": scored.model_dump(), "model_call": outcome.model_call.model_dump(),
+        results.append({"case_id": case.id, "question": case.question, "prompt_chars": outcome.prompt_chars,
+                        "proposals_received": outcome.proposals_received,
+                        "score": scored.model_dump(), "model_call": outcome.model_call.model_dump(),
                         "rejected": [r.model_dump() for r in outcome.rejected],
                         "content_digest": outcome.finalized.content_digest,
                         "report": json.loads(outcome.finalized.snapshot)})
@@ -109,6 +116,10 @@ def run_live(settings: Settings, confirmed: bool, only: list[str]) -> int:
             print("stopping: inference is disabled or the provider refused the credentials/billing", file=sys.stderr)
             break
     summary = {
+        "source": "live Meta Model API (not a replay)",
+        "max_completion_tokens": settings.meta_max_completion_tokens,
+        "reasoning_effort": reasoning_effort,
+        "max_prompt_chars": settings.meta_max_prompt_chars,
         "cases_run": len(results),
         "correct": sum(1 for r in results if r["score"]["correct"]),
         "tokens": dict(usage),
@@ -124,12 +135,15 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("mode", choices=["structural", "live"])
     parser.add_argument("--confirm-paid-call", action="store_true")
-    parser.add_argument("--case", action="append", default=[], help="live mode: run only these case ids")
+    parser.add_argument("--case", action="append", default=[], help="live mode: run only these case ids (required)")
+    parser.add_argument("--max-completion-tokens", type=int, help="live mode: override META_MAX_COMPLETION_TOKENS")
+    parser.add_argument("--reasoning-effort", default="low", help="live mode: reasoning_effort sent to the model")
     args = parser.parse_args()
-    settings = Settings()
+    overrides = {} if args.max_completion_tokens is None else {"meta_max_completion_tokens": args.max_completion_tokens}
+    settings = Settings(**overrides)  # validated: 0 < tokens <= 32768
     if args.mode == "structural":
         return run_structural(settings)
-    return run_live(settings, args.confirm_paid_call, args.case)
+    return run_live(settings, args.confirm_paid_call, args.case, args.reasoning_effort)
 
 
 if __name__ == "__main__":
