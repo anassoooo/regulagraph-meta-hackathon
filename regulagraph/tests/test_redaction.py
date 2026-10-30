@@ -120,3 +120,111 @@ def test_live_runner_end_to_end_with_echoing_provider_saves_no_credential(monkey
     data = json.loads(text)
     assert data["summary"]["api_calls"] == 1  # stopped after the systemic provider error; E05 never called
     assert data["results"][0]["model_call"]["outcome"] == "provider_error"
+
+
+# Final emitted log output (second review of fd9c67d) ---------------------------
+
+BEARER = "Bearer live-token-abcdef123456"
+
+
+@pytest.fixture
+def emitted(settings, tmp_path):
+    """A logger with a stream handler and a file handler; returns a function giving all emitted text."""
+    import io
+
+    install_log_redaction(settings)
+    logger = logging.getLogger(f"regulagraph.test.redaction.{tmp_path.name}")
+    logger.propagate = False
+    logger.setLevel(logging.DEBUG)
+    stream = io.StringIO()
+    fmt = logging.Formatter("%(levelname)s %(message)s %(provider_error)s")
+    stream_handler = logging.StreamHandler(stream)
+    stream_handler.setFormatter(fmt)
+    file_handler = logging.FileHandler(tmp_path / "app.log", encoding="utf-8")
+    file_handler.setFormatter(fmt)
+    logger.addHandler(stream_handler)
+    logger.addHandler(file_handler)
+
+    def text() -> str:
+        file_handler.flush()
+        return stream.getvalue() + "\n" + (tmp_path / "app.log").read_text(encoding="utf-8")
+
+    yield logger, text
+    for h in (stream_handler, file_handler):
+        logger.removeHandler(h)
+        h.close()
+
+
+def _log_with_stack(logger, marker):
+    logger.warning("with stack", stack_info=True, extra={"provider_error": "-"})  # noqa: E501
+
+
+def test_exception_traceback_is_redacted(emitted) -> None:
+    logger, text = emitted
+    try:
+        raise RuntimeError(DUMMY_KEY)
+    except RuntimeError:
+        logger.exception("request failed", extra={"provider_error": "-"})
+    out = text()
+    assert "request failed" in out and "RuntimeError: [REDACTED]" in out and "Traceback" in out
+    assert DUMMY_KEY not in out
+
+
+def test_extra_field_is_redacted(emitted) -> None:
+    logger, text = emitted
+    logger.warning("request failed", extra={"provider_error": DUMMY_KEY})
+    logger.warning("request failed", extra={"provider_error": f"header {BEARER}"})
+    out = text()
+    assert DUMMY_KEY not in out and "live-token-abcdef123456" not in out
+    assert "WARNING request failed [REDACTED]" in out and "Bearer [REDACTED]" in out
+
+
+def test_chained_exception_is_redacted(emitted) -> None:
+    logger, text = emitted
+    try:
+        try:
+            raise ValueError(f"upstream rejected {BEARER}")
+        except ValueError as inner:
+            raise RuntimeError(f"wrapped {DUMMY_KEY}") from inner
+    except RuntimeError:
+        logger.error("chained", exc_info=True, extra={"provider_error": "-"})
+    out = text()
+    assert "direct cause of the following exception" in out  # both exceptions were formatted
+    assert DUMMY_KEY not in out and "live-token-abcdef123456" not in out
+
+
+def test_stack_info_is_redacted(emitted) -> None:
+    logger, text = emitted
+    # The stack shows this source line, which contains the dummy key literal below.
+    _log_with_stack(logger, "dummy-secret-key-0123456789abcdef")
+    out = text()
+    assert "Stack (most recent call last)" in out and "_log_with_stack(logger, " in out
+    assert DUMMY_KEY not in out
+
+
+def test_handlers_configured_later_and_custom_formatters_are_covered(settings, tmp_path) -> None:
+    """The boundary is Handler.format, so handlers added after installation are protected too."""
+    import io
+
+    class JsonishFormatter(logging.Formatter):
+        def format(self, record):
+            return json.dumps({"msg": record.getMessage(), "err": getattr(record, "provider_error", None)})
+
+    install_log_redaction(settings)
+    logger = logging.getLogger("regulagraph.test.redaction.later")
+    logger.propagate = False
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(JsonishFormatter())
+    logger.addHandler(handler)
+    try:
+        logger.warning("x", extra={"provider_error": DUMMY_KEY})
+    finally:
+        logger.removeHandler(handler)
+    assert DUMMY_KEY not in stream.getvalue() and REDACTED in stream.getvalue()
+
+
+def test_ordinary_log_output_is_unchanged(emitted) -> None:
+    logger, text = emitted
+    logger.info("loaded %d provisions", 80, extra={"provider_error": "none"})
+    assert "INFO loaded 80 provisions none" in text()

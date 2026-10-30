@@ -181,7 +181,7 @@ Gold quotes are checked automatically against the extracted text. The cases were
 - **Credential redaction** (`app/core/redaction.py`). `SecretStr` alone is not relied on. The configured key and any `Bearer <token>` are replaced with `[REDACTED]` in four places:
   - at the provider error boundary, because a provider may echo the key;
   - in every model-call record and parsed model output;
-  - on every log record, once `install_log_redaction` has run (the app and all scripts call it);
+  - in the final output of every logging handler (message, `extra` fields, tracebacks including chained exceptions, stack info), at the `logging.Handler.format` boundary, once `install_log_redaction` has run (the app and all scripts call it);
   - in every file the scripts write.
 
   `tests/test_redaction.py` echoes a dummy key from a mocked provider and checks it never appears in the outcome, the logs or a saved result.

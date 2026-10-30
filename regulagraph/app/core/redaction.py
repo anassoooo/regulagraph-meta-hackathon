@@ -8,7 +8,8 @@ files under ``eval/results/``. Redaction is applied:
 * at the provider error boundary (``MetaModelAdapter``),
 * when model-call records are built (``investigator._call_model``),
 * before evaluation and demo results are written (scripts),
-* on every log record, once ``install_log_redaction`` has run.
+* on the final output of every logging handler (message, ``extra`` fields,
+  tracebacks, stack info), once ``install_log_redaction`` has run.
 
 Both the configured secret values and any ``Bearer <token>`` pattern are replaced.
 """
@@ -51,8 +52,22 @@ def redact_obj(value: Any, secrets: Iterable[str]) -> Any:
 
 
 def install_log_redaction(settings: Settings) -> None:
-    """Redact configured secrets and bearer tokens from every log record created from now on."""
+    """Redact configured secrets and bearer tokens from all log output from now on.
+
+    Two layers, both process-wide and idempotent:
+
+    1. Output boundary (authoritative): ``logging.Handler.format`` is wrapped at
+       class level, so the final string every handler emits is redacted after
+       the formatter has added the message, ``extra`` fields, the traceback
+       (including chained exceptions) and stack info. This covers all handlers
+       that build output through ``self.format(record)``: stream, file,
+       rotating, queue, uvicorn's and pytest's handlers and ``lastResort``.
+    2. Record creation (early): the message of each new ``LogRecord`` is
+       redacted, which also protects handlers that read ``record.getMessage()``
+       directly instead of formatting.
+    """
     _installed_secrets.update(configured_secrets(settings))
+    _install_handler_output_redaction()
     factory = logging.getLogRecordFactory()
     if getattr(factory, "_regulagraph_redacting", False):
         return
@@ -70,3 +85,15 @@ def install_log_redaction(settings: Settings) -> None:
 
     redacting_factory._regulagraph_redacting = True  # type: ignore[attr-defined]
     logging.setLogRecordFactory(redacting_factory)
+
+
+def _install_handler_output_redaction() -> None:
+    original = logging.Handler.format
+    if getattr(original, "_regulagraph_redacting", False):
+        return
+
+    def redacting_format(self: logging.Handler, record: logging.LogRecord) -> str:
+        return redact(original(self, record), _installed_secrets)
+
+    redacting_format._regulagraph_redacting = True  # type: ignore[attr-defined]
+    logging.Handler.format = redacting_format  # type: ignore[method-assign]

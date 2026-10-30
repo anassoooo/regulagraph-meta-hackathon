@@ -11,6 +11,18 @@ Branch: `feat/sprint-2-investigation`. Review target: the PR head. Do not merge 
 | **P1: credential redaction** | `app/core/redaction.py`. The configured key and `Bearer <token>` are redacted at the provider error boundary (`meta_client._provider_error`), in every `ModelCallRecord` and parsed item (`investigator._call_model`), in log records (`install_log_redaction`: app and scripts), and in every file the scripts write | `pytest tests/test_redaction.py`. A MockTransport provider echoes a dummy key in its error message, type and header. The tests check the exception, `to_dict`, `InvestigationOutcome` JSON, logs, `_write` output and the full `run_live` path |
 | **P2: evaluation consistency** | Live files keep the run's own `score` unchanged (historical). `rescored` is replaced with the scorer v2 result (`scoring_version: 2`). `eval/results/current_scoring_summary.json` is the single current summary. `eval/README.md` separates the raw call facts (A), current v2 metrics (B) and superseded historical scores (C), and documents the E13 re-run and the E10 truncation | `python scripts/run_eval.py rescore eval/results/live_*.json`, then `git diff`: only `rescored`, `rescore_note` and the summary may change. `tests/test_evaluation.py::test_rescore_of_recorded_live_results` asserts that `score` is untouched |
 
+### Second review of `fd9c67d`: logging redaction bypass (P1)
+
+- **Problem:** the record factory redacted only `record.getMessage()`. Tracebacks, chained exceptions, stack info and `extra` fields are added later by the formatter, and they leaked.
+- **Fix:** redaction now happens at the **final output boundary**. `install_log_redaction` wraps `logging.Handler.format` once, process-wide, so the exact string each handler emits is redacted after formatting. The early record-level layer is kept.
+- **Coverage:** every handler that builds its output through `self.format(record)`: stream, file, rotating, `QueueHandler`, uvicorn's and pytest's handlers, `lastResort`, and handlers added after installation, with any formatter.
+- **Verify:** `pytest tests/test_redaction.py -v`. The tests reproduce both reviewer examples plus a chained exception, a stack-info case and a custom formatter. They assert that the dummy key and the Bearer token are absent from the stream and file output, not just from `LogRecord.message`.
+- **Limitations:**
+  - a handler that overrides `format()` without calling `Handler.format`, or that ships raw records (`SocketHandler`/`HTTPHandler` pickle or urlencode the record), bypasses the boundary;
+  - `LogRecord` objects themselves (e.g. `caplog.records`, `exc_info`) still hold the original exception object.
+
+  No such handlers are configured by the app or the scripts.
+
 No live calls were made for this remediation. Credentials were not changed. All relationships remain `candidate`. Arbitrary PDF upload remains unavailable: the corpus is the curated manifest only.
 
 ## Claims to check
@@ -61,7 +73,7 @@ Not run live: E02, E03, E04, E06, E07, E08, E09, E11.
 ```bash
 cd regulagraph && pip install -e ".[dev]"
 python scripts/fetch_corpus.py              # 5 PDFs + SHA-256 check (needed for real-corpus tests)
-pytest                                       # expect 308 passed, 1 skipped (live test, opt-in)
+pytest                                       # expect 314 passed, 1 skipped (live test, opt-in)
 pytest tests/test_redaction.py tests/test_evaluation.py -v
 python scripts/run_eval.py structural        # 46 probes: 7 accept, 24 reject, 15 undetectable; recall 7/7, 5/5
 python scripts/run_eval.py rescore eval/results/live_*.json
