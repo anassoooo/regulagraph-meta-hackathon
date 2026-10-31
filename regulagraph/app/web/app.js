@@ -3,11 +3,16 @@
 import {
   NODE_HALF_HEIGHT,
   NODE_HALF_WIDTH,
+  REVIEW_ACTIONS,
+  budgetText,
   buildGraph,
   edgePath,
   errorMessage,
   evaluationRows,
   inspectorModel,
+  latestReviews,
+  liveCallText,
+  reviewStatusText,
   stateMessage,
 } from "./view.js";
 
@@ -62,6 +67,8 @@ function clearResult() {
   $("graph-wrap").hidden = true;
   $("rejected").hidden = true;
   $("rejected").replaceChildren();
+  selectedId = null;
+  reviews = new Map();
   showInspector(null);
 }
 
@@ -87,6 +94,8 @@ async function loadScenarios() {
 }
 
 let current = null;
+let selectedId = null; // relationship shown in the inspector
+let reviews = new Map(); // live runs only: relationship_id -> latest review record of `current`
 // Latest request wins: each selection gets a new sequence number and aborts the previous request.
 // A response or error for a superseded selection is dropped, so it can never overwrite the UI.
 let replaySeq = 0;
@@ -127,6 +136,11 @@ function renderReplay(replay) {
       text: ` Recorded ${rec.recorded_at} · ${rec.model_id} · ${rec.prompt_tokens ?? "?"} in / ${rec.completion_tokens ?? "?"} out tokens (${rec.reasoning_tokens ?? "?"} reasoning) · ${rec.file}`,
     }),
   );
+  renderBody(replay);
+}
+
+// Shared by replay and live results: state, graph, relationship list, rejected proposals.
+function renderBody(replay) {
   showState(stateMessage(replay.state));
   if (replay.relationships.length) {
     renderGraph(replay);
@@ -201,6 +215,7 @@ function renderList(replay) {
 }
 
 function selectRelationship(id) {
+  selectedId = id;
   document.querySelectorAll("[data-relationship]").forEach((n) =>
     n.classList.toggle("selected", n.getAttribute("data-relationship") === id));
   showInspector(current ? inspectorModel(current, id) : null);
@@ -244,6 +259,138 @@ function showInspector(model) {
   } else {
     box.append(el("p", { className: "hint", text: "No interpretation recorded." }));
   }
+  if (current && current.mode === "live" && selectedId) box.append(reviewSection(current, selectedId));
+}
+
+// --- review (live runs only) ------------------------------------------------------------
+
+function reviewSection(live, relId) {
+  const section = el("section", { className: "review" });
+  section.append(el("h4", { text: "Your review" }), el("p", { className: "hint", text: live.review_meaning }),
+    el("p", { className: "review-status", text: reviewStatusText(reviews.get(relId)) }));
+  const note = el("textarea", { attrs: { id: "review-note", rows: 2, maxlength: 1000, "aria-label": "Review note (optional)",
+    placeholder: "Note (optional)" } });
+  const actions = el("div", { className: "review-actions" });
+  for (const [decision, label] of REVIEW_ACTIONS) {
+    const button = el("button", { className: "review-btn", text: label, attrs: { type: "button", "data-review": decision } });
+    button.addEventListener("click", () => submitReview(live, relId, decision, String(note.value || "")));
+    actions.append(button);
+  }
+  section.append(note, actions, el("p", { className: "review-error", attrs: { id: "review-error" } }));
+  return section;
+}
+
+async function submitReview(live, relId, decision, note) {
+  const reviewsUrl = `/api/live/investigations/${encodeURIComponent(live.report_id)}/reviews`;
+  let record;
+  try {
+    record = await api(reviewsUrl, {
+      method: "POST", headers: JSON_HEADERS,
+      body: JSON.stringify({ relationship_id: relId, content_digest: live.content_digest, decision, note }),
+    });
+  } catch (err) {
+    if (current === live && selectedId === relId) {
+      const m = errorMessage(err.status || 0, err.body);
+      $("review-error").textContent = `Review not recorded. ${m.title}: ${m.body}`;
+    }
+    return;
+  }
+  if (current !== live || !record || record.relationship_id !== relId) return; // a newer result is shown
+  reviews.set(relId, record);
+  if (selectedId === relId) showInspector(inspectorModel(current, relId));
+}
+
+async function loadReviews(live) {
+  let data;
+  try {
+    data = await api(`/api/live/investigations/${encodeURIComponent(live.report_id)}/reviews`);
+  } catch {
+    return; // reviews can still be recorded; existing ones are just not shown
+  }
+  if (current !== live || !data || data.report_id !== live.report_id) return;
+  reviews = latestReviews(data.reviews);
+  if (selectedId) showInspector(inspectorModel(current, selectedId));
+}
+
+// --- live investigation (local live mode only) -----------------------------------------
+
+const JSON_HEADERS = { Accept: "application/json", "Content-Type": "application/json" };
+
+async function loadLive() {
+  let status;
+  let docs;
+  try {
+    status = await api("/api/live/status");
+    if (!status || status.enabled !== true) return; // replay-only server: the live panel stays hidden
+    docs = await api("/api/live/documents");
+  } catch {
+    return;
+  }
+  const banner = $("live-banner");
+  banner.textContent = `LIVE MODE ENABLED: "Run live investigation" makes a paid Meta Muse call (${status.model_id}). Curated scenarios remain replays. Every result is an AI-generated candidate, unconfirmed.`;
+  banner.hidden = false;
+  const box = $("live-docs");
+  box.replaceChildren(el("legend", { text: "Source documents (only the selected ones are used)" }));
+  for (const d of docs) {
+    const input = el("input", { attrs: { type: "checkbox", "data-live-doc": d.document_id } });
+    box.append(el("label", { className: "live-doc" }, input, ` ${d.reference || "Circular"} · ${d.title || ""}`));
+  }
+  $("live-budget").textContent = budgetText(status.budget);
+  $("live-run").addEventListener("click", runLive);
+  $("live-panel").hidden = false;
+}
+
+function liveRequestProblem(question, documentIds, confirmed) {
+  if (!question) return "Enter a question.";
+  if (!documentIds.length) return "Select at least one source document.";
+  if (!confirmed) return "Confirm the paid Meta call.";
+  return null;
+}
+
+async function runLive() {
+  const question = String($("live-question").value || "").trim();
+  const documentIds = Array.from(document.querySelectorAll("[data-live-doc]"))
+    .filter((input) => input.checked === true)
+    .map((input) => input.getAttribute("data-live-doc"));
+  const confirmed = $("live-confirm").checked === true;
+  // Same latest-request-wins sequence as scenario replays: a newer selection supersedes this run.
+  const seq = ++replaySeq;
+  if (replayAbort) replayAbort.abort();
+  replayAbort = new AbortController();
+  const { signal } = replayAbort;
+  current = null;
+  document.querySelectorAll(".scenario").forEach((b) => b.classList.toggle("selected", false));
+  clearResult();
+  $("question").append(el("span", { className: "label", text: "Question (live)" }), el("p", { text: question }));
+  const problem = liveRequestProblem(question, documentIds, confirmed);
+  if (problem) {
+    showState({ kind: "error", title: "Live investigation not started", body: problem });
+    return;
+  }
+  $("live-confirm").checked = false; // every paid call needs a fresh confirmation
+  showState({ kind: "loading", title: "Calling Meta Muse (paid)…",
+    body: "Only the selected documents are used as source context. Quotations are re-verified against the source text." });
+  let live;
+  try {
+    live = await api("/api/live/investigations", {
+      method: "POST", signal, headers: JSON_HEADERS,
+      body: JSON.stringify({ question, document_ids: documentIds, confirm_paid_call: true }),
+    });
+  } catch (err) {
+    if (seq !== replaySeq) return;
+    showState(errorMessage(err.status || 0, err.body));
+    return;
+  }
+  if (seq !== replaySeq) return;
+  if (!live || live.mode !== "live" || live.question !== question) {
+    showState(errorMessage(0, { error: { message: "The live response does not match the request." } }));
+    return;
+  }
+  current = live;
+  $("live-budget").textContent = budgetText(live.budget);
+  $("recording").replaceChildren(el("span", { className: "badge live", text: "Live" }), el("span", { text: liveCallText(live) }));
+  renderBody(live);
+  loadReviews(live);
 }
 
 // --- evaluation ----------------------------------------------------------------------
@@ -286,3 +433,4 @@ function showView(name) {
 
 document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => showView(t.dataset.view)));
 loadScenarios();
+loadLive();

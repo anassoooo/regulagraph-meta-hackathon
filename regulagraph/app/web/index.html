@@ -20,6 +20,7 @@
   <div id="replay-banner" class="banner replay" role="status">
     REPLAY MODE: recorded Muse responses replayed through the verification pipeline. No model is called.
   </div>
+  <div id="live-banner" class="banner live" role="status" hidden></div>
 
   <main>
     <section id="view-investigate" class="view">
@@ -27,6 +28,17 @@
         <h2>Curated investigations</h2>
         <ul id="scenario-list" class="scenario-list" aria-label="Scenarios"></ul>
         <p class="hint">Curated questions only. Every result is an AI-generated candidate and unconfirmed.</p>
+
+        <section id="live-panel" class="live-panel" hidden>
+          <h2>Live investigation</h2>
+          <p class="hint">One paid Meta Muse call. Only the source documents you select are used as source context.</p>
+          <fieldset id="live-docs" class="live-docs"><legend>Source documents</legend></fieldset>
+          <label for="live-question">Question</label>
+          <textarea id="live-question" rows="4" maxlength="500"></textarea>
+          <label class="live-confirm"><input type="checkbox" id="live-confirm"> I confirm one paid Meta call</label>
+          <button type="button" id="live-run" class="live-run">Run live investigation</button>
+          <p id="live-budget" class="hint"></p>
+        </section>
       </aside>
 
       <section class="panel result" aria-live="polite">

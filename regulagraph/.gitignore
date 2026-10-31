@@ -12,3 +12,5 @@ data/raw/
 
 # Ad-hoc demo outputs (evaluation results are committed).
 eval/results/investigation_*.json
+# Local live-mode data: spending ledger, live runs, review records (never committed).
+var/

@@ -48,10 +48,20 @@ def test_scenarios_are_the_curated_four_without_e10(client) -> None:
     assert all(s["question"] for s in data)
 
 
-def test_no_live_inference_route_exists(client) -> None:
+def test_live_inference_exists_only_under_api_live_and_is_off_by_default(client, monkeypatch) -> None:
+    # Sprint 3.5 (PM override of D1): live routes exist, under /api/live only, and refuse unless live mode is on.
+    from app.core.config import get_settings
+
+    monkeypatch.delenv("LIVE_MODE_ENABLED", raising=False)
+    get_settings.cache_clear()
     paths = [getattr(r, "path", "") for r in create_app().routes]
-    assert not any("live" in p and p != "/health/live" for p in paths)
+    assert all(p.startswith("/api/live/") for p in paths if "live" in p and p != "/health/live")
     assert client.post("/api/scenarios/E01/live").status_code in {404, 405}
+    local = TestClient(create_app(), base_url="http://127.0.0.1:8000", client=("127.0.0.1", 50000))
+    r = local.post("/api/live/investigations", json={"confirm_paid_call": True},
+                   headers={"Origin": "http://127.0.0.1:8000"})
+    assert r.status_code == 403 and r.json()["error"]["code"] == "live_mode_disabled"
+    get_settings.cache_clear()
 
 
 def test_unknown_and_evaluation_only_scenarios_are_404(client) -> None:

@@ -24,7 +24,8 @@ needs_node = pytest.mark.skipif(NODE is None, reason="node is not installed")
 
 @needs_node
 def test_js_unit_tests_pass() -> None:
-    result = subprocess.run([NODE, "--test", "tests/js/view.test.mjs", "tests/js/controller.test.mjs"], cwd=ROOT,
+    result = subprocess.run([NODE, "--test", "tests/js/view.test.mjs", "tests/js/controller.test.mjs",
+                             "tests/js/live.test.mjs"], cwd=ROOT,
                             capture_output=True, text=True, timeout=120)
     assert result.returncode == 0, result.stdout + result.stderr
 
