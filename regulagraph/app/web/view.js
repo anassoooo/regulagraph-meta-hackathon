@@ -245,3 +245,17 @@ export function evaluationRows(evaluation) {
         : (c.errors || []).join(", "),
   }));
 }
+
+// --- live mode (Sprint 3.5) --------------------------------------------------------------
+
+export function liveCallText(live) {
+  const c = live.call || {};
+  const cost = typeof c.estimated_cost_usd === "number" ? `~${c.estimated_cost_usd.toFixed(4)} USD (estimated)` : "cost unknown";
+  const docs = (live.approved_document_ids || []).length;
+  return ` ${live.created_at} · ${c.model_id} · ${c.prompt_tokens ?? "?"} in / ${c.completion_tokens ?? "?"} out tokens (${c.reasoning_tokens ?? "?"} reasoning) · ${cost} · ${docs} approved source document(s)`;
+}
+
+export function budgetText(budget) {
+  if (!budget) return "";
+  return `Budget: ${budget.spent_usd.toFixed(4)} of ${budget.ceiling_usd.toFixed(2)} USD used (estimated) · ${budget.calls_used} of ${budget.max_calls} calls`;
+}

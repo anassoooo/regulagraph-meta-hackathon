@@ -108,3 +108,18 @@ main { padding: 1rem; }
   .graph-wrap svg { width: 860px; max-width: none; }
   .narrow-only { display: block; }
 }
+
+/* Sprint 3.5 live mode (functional styling only) */
+.banner.live { background: #5a1d1d; color: #ffe1e1; border-bottom: 3px solid #e05252; }
+.badge.live { background: #5a1d1d; color: #ffe1e1; }
+.live-panel { margin-top: 1.25rem; border-top: 1px solid #d9dde5; padding-top: .75rem; }
+.live-panel label, .live-panel textarea, .live-panel button { display: block; width: 100%; box-sizing: border-box; }
+.live-panel textarea, .review textarea { font: inherit; margin: .25rem 0 .5rem; }
+.live-docs { border: 1px solid #d9dde5; border-radius: 6px; margin: .5rem 0; }
+.live-doc { font-size: .85rem; margin: .2rem 0; }
+.live-confirm { font-size: .85rem; margin: .4rem 0; }
+.live-run { padding: .5rem; font-weight: 700; }
+.review { margin-top: 1rem; border-top: 1px solid #d9dde5; padding-top: .5rem; }
+.review textarea { width: 100%; box-sizing: border-box; }
+.review-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
+.review-status { font-weight: 600; }
