@@ -347,8 +347,8 @@ class GuardedAdapter:
         if self.calls:
             raise AllowlistViolation("one model call per live run")
         check_prompt(messages, self.question, self.scope)
-        cap = kwargs.get("max_completion_tokens") or self.ledger.settings.meta_max_completion_tokens
-        reserved = worst_case_cost(messages, min(int(cap), self.ledger.settings.meta_max_completion_tokens))
+        # The adapter never sends more than the settings cap, so the cap is the worst case for output.
+        reserved = worst_case_cost(messages, self.ledger.settings.meta_max_completion_tokens)
         rid = self.ledger.reserve(reserved)
         self.calls += 1
         try:
@@ -470,6 +470,15 @@ def budget_state(settings: Settings) -> BudgetState:
     return Ledger(settings).state()
 
 
+def live_settings(settings: Settings) -> Settings:
+    """Settings for the live path: the live output-token ceiling replaces META_MAX_COMPLETION_TOKENS.
+
+    Only the live investigation uses this copy (the model call, its record and the budget
+    reservation); replay and every other path keep the original settings.
+    """
+    return settings.model_copy(update={"meta_max_completion_tokens": settings.live_max_completion_tokens})
+
+
 def run_live(settings: Settings, view: CorpusView, question: object, document_ids: object,
              confirm_paid_call: object, *, adapter: ModelAdapter | None = None) -> LiveRun:
     require_enabled(settings)
@@ -481,10 +490,11 @@ def run_live(settings: Settings, view: CorpusView, question: object, document_id
     if not _live_lock.acquire(blocking=False):
         raise LiveBusy("A live investigation is already running; wait for it to finish.")
     try:
-        ledger = Ledger(settings)
+        live = live_settings(settings)
+        ledger = Ledger(live)
         ledger.state()  # a corrupt ledger blocks the call before anything else happens
-        guarded = GuardedAdapter(adapter or MetaModelAdapter(settings), q, scope, ledger)
-        outcome = investigate(q, scope.sources, scope.provisions, guarded, settings)
+        guarded = GuardedAdapter(adapter or MetaModelAdapter(live), q, scope, ledger)
+        outcome = investigate(q, scope.sources, scope.provisions, guarded, live)
         check_outcome(outcome, scope)
         run = LiveRun(question=q, document_ids=[view.doc_id(k) for k in keys], outcome=outcome,
                       cost_usd=guarded.cost_usd, created_at=_now())

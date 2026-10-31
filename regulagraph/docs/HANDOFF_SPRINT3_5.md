@@ -18,7 +18,8 @@
 | Commit | Content |
 |---|---|
 | `771f5c0` (P0) | Live mode, document allowlist, prompt and report checks, spending ledger, request protections, live panel, tests, golden replay hashes |
-| P1 (the commit adding this file) | Review records (service, API, inspector controls), tests, docs |
+| `38fbfe6` (P1) | Review records (service, API, inspector controls), tests, docs |
+| Live cap (the commit updating this file) | PM-approved live-only output ceiling 4096 (was 2048), worst-case reservation at the new cap, tests, second smoke test |
 
 P1 was started only after the full P0 gate passed: 764 passed, 1 skipped, on Python 3.11 and 3.13.
 
@@ -31,7 +32,8 @@ P1 was started only after the full P0 gate passed: 764 passed, 1 skipped, on Pyt
 | Question vs source context | `live.check_prompt` | The prompt must start with exactly `Question: <question>` followed by the documents block. Only the text after the question is checked. Every `<document>` and `<provision>` there must be approved, and no excluded document or provision ID may appear. The question may name any circular. A failed check means nothing is sent and no budget is reserved. |
 | Report check | `live.check_outcome` | Every document, provision, evidence span and target in the finalized report must be approved, and every relationship must be `candidate`. |
 | Evidence | unchanged `investigate()`, `finalize_report()` | Same verification as replay. Truncated, refused or malformed answers publish nothing. |
-| Spending | `live.Ledger`, `live.GuardedAdapter` | One call at a time per process (409 otherwise). The worst case (prompt UTF-8 bytes + 64 tokens of input, the completion cap as output, at published prices) is reserved in `var/live/ledger.jsonl` before the call. The call is refused (429) if it could pass the ceiling (default $4.50, settings max $5.00) or the call cap (40). The reservation is then settled from the reported usage, or kept if no usage was reported or the call failed. An unsettled reservation counts as spent. The ledger is hash-chained, and any edit blocks all calls (503). |
+| Live output cap | `config.live_max_completion_tokens`, `live.live_settings` | Live calls use a copy of the settings whose `meta_max_completion_tokens` is `LIVE_MAX_COMPLETION_TOKENS` (default and maximum 4096). The copy is used for the adapter's own cap, the request, the recorded call and the reservation. Replay, the CLI and `META_MAX_COMPLETION_TOKENS` (2048) are unchanged. |
+| Spending | `live.Ledger`, `live.GuardedAdapter` | One call at a time per process (409 otherwise). The worst case (prompt UTF-8 bytes + 64 tokens of input, the adapter's settings cap, now 4096, as output, at published prices) is reserved in `var/live/ledger.jsonl` before the call. The call is refused (429) if it could pass the ceiling (default $4.50, settings max $5.00) or the call cap (40). The reservation is then settled from the reported usage, or kept if no usage was reported or the call failed. An unsettled reservation counts as spent. The ledger is hash-chained, and any edit blocks all calls (503). |
 | Browser protections | `app/api/live.py` | Loopback client only. Host header must be `127.0.0.1`, `localhost` or `[::1]` (DNS rebinding). POSTs must be `application/json` (415 for form or text types), carry this server's exact `Origin`, not have `Sec-Fetch-Site` other than `same-origin`, and include `"confirm_paid_call": true`. Live checks run before the body is read. |
 | Immutable runs | `live.save_run`, `live.load_run` | Written once with exclusive create, redacted. Loading re-validates the `FinalizedReport` (digest, canonical form, no confirmed relationships). |
 | Reviews | `live.add_review`, `/api/live/investigations/{report_id}/reviews` | Appended to `var/live/reviews.jsonl` (hash-chained), bound to `report_id`, `content_digest` and a relationship of that run. Decisions are `accepted`, `rejected` or `needs_more_evidence`, plus a note of at most 1,000 characters. Each record carries `relationship_status: "candidate"` and `legal_confirmation: false`, and the UI says "not a legal confirmation". Reviews never modify the run. |
@@ -52,6 +54,7 @@ P1 was started only after the full P0 gate passed: 764 passed, 1 skipped, on Pyt
 | Unconfirmed paid call | missing, `false`, `"true"` or `1` → 422 with zero calls; the UI clears the confirmation box after each call |
 | CSRF and DNS rebinding | missing, foreign or other-port `Origin`; `Sec-Fetch-Site` of `cross-site` or `same-site`; `text/plain`, form or multipart bodies; non-loopback client; foreign Host header → 403/415 with zero calls |
 | Overspending | reserve/settle accounting; refusal when the worst case exceeds the remaining budget; call cap; cumulative ceiling over 12 calls with no reported usage (spent ≤ ceiling); a failed call keeps its worst case; an unsettled reservation counts as spent; a ceiling above $5 is rejected by settings; `demo.py --live` refuses a public host and a budget above 5 |
+| Output cap and reservation | `test_live_calls_use_the_4096_ceiling_and_reserve_it_as_worst_case` (the adapter is built with cap 4096; the request asks for 4096; the reservation equals the worst case at 4096 and exceeds the old one at 2048; the recorded call says 4096; global settings stay 2048); `test_live_ceiling_cannot_be_configured_above_4096`; `test_real_adapter_never_sends_more_than_the_live_ceiling` (the real `MetaModelAdapter` over a mock transport sends 4096 for requests of 4096 or 8000, and 1000 for 1000) |
 | Concurrency | `test_concurrent_requests_make_one_call` (the second request gets `LiveBusy`; one reservation) |
 | Ledger or review tampering | an edited, deleted or garbage ledger line blocks calls (status shows the reason); an edited review log gives 503 |
 | Credentials | a key echoed in model output is absent from the response and from every stored file |
@@ -83,7 +86,9 @@ P1 was started only after the full P0 gate passed: 764 passed, 1 skipped, on Pyt
 - the replay route has no live variant;
 - `POST /api/live/investigations` returns 403 `live_mode_disabled` by default.
 
-## Live smoke test (authorised, run once)
+## Live smoke tests (two authorised calls)
+
+### Call 1: cap 2048 (P1 head `38fbfe6`)
 
 ```
 POST /api/live/investigations
@@ -113,15 +118,52 @@ The call exercised:
 
 It did **not** produce relationships, because Muse spent its whole completion cap. The recorded E01 run used 1,922 of 2,048 tokens, so this question sits at the edge of the cap.
 
-**Total additional Meta spend: $0.01278 (estimated), 1 call.**
+### Call 2: live cap 4096 (PM-approved, exactly one call)
+
+The request was identical: same question, same approved documents, 2025-01 excluded. The prompt, retrieval and finalization were unchanged, giving the same 12,070-byte prompt and 3,260 prompt tokens.
+
+**Before the call:**
+- full gate green (785 passed on Python 3.13 and 3.11; JS 32/32; golden byte-identical);
+- worst-case reservation at 4096: $0.03258;
+- remaining budget: $4.48722, enough to cover it.
+
+| Field | Value |
+|---|---|
+| HTTP | 200 in 7.5 s |
+| `finish_reason` | **`stop`** |
+| Outcome | `ok` |
+| Tokens | 3,260 prompt; 1,888 completion (1,335 reasoning) |
+| Latency | 7,391 ms |
+| Ledger | reserved **$0.03258** (exactly the computed worst case), settled at **$0.0121** |
+| Finalized | **yes** (`report_id` `rep_d816b33c27e0e7e60103c627bf979da6`, digest `9d4f65a5…`) |
+| Candidate relationships | **2**, both from Article 52 (2026-10) to circular 2018-16 (whole circular): `repeals` and `supersedes`. Both `candidate`, `inferred`, `confirmed: false`. |
+| Verified evidence spans | **1**, shared by both: page 33, characters 1145–1428, "Article 52: La présente circulaire abroge et remplace la circulaire n°2018-16 …" |
+| Rejected proposals | 0 |
+
+**Independent re-verification**, outside the API:
+- `load_run` re-validated the stored `FinalizedReport`;
+- `finalize_report` was re-run against the hash-verified PDFs and gave the identical content digest;
+- the quotation is exactly the page text at those offsets;
+- every retrieved provision belongs to an approved document;
+- 2025-01 appears nowhere in the report.
+
+**Review workflow, end to end on the live server:**
+- `accepted` was recorded for `repeals` with a note. The record carries `relationship_status: "candidate"` and `legal_confirmation: false`, and the list shows the not-a-legal-confirmation meaning.
+- The decision `confirmed` was refused (422), as was a wrong digest (422) and a foreign `Origin` (403).
+- The run file's SHA-256 is identical before and after the review (`145b20dd…`).
+- The stored digest is unchanged and the statuses are still `candidate`.
+- No spend: 2 calls in the ledger before and after.
+- The E01 replay served by the live server still matches its golden hash.
+
+**Total additional Meta spend: $0.02488 (estimated), 2 calls** ($0.01278 + $0.0121). The ledger shows $4.47512 of $4.50 remaining.
 
 ## Remaining limitations
 
-1. **Truncation at the default cap.** At `META_MAX_COMPLETION_TOKENS=2048` and `reasoning_effort=low`, live answers can be truncated, as the smoke test was. Raising the cap for live mode to 4096 would increase the worst case per call by about $0.009. Not changed without PM approval.
-2. **Live relationships and reviews on a real answer are not yet demonstrated.** They are covered by tests using the recorded E01 answer through the full pipeline, but not by a successful live call. A second smoke call needs PM approval.
+1. **Truncation is still possible.** Live calls are now capped at 4096 tokens. Call 2 used 1,888 and finished normally, but the model's reasoning length varies. A truncated answer still publishes nothing, and the cap cannot be configured higher.
+2. **One successful live answer so far.** It was demonstrated on a single question, E01. Other questions are covered only by tests with recorded or fake answers.
 3. **Costs are estimates.** They are computed from reported usage at published prices (`PRICE_PER_M_*` in `evaluation.py`, checked 2026-10-30), not from invoices.
-4. **The ledger is local.** It guards this checkout's `var/live/`. Deleting the directory resets the budget, and so does a second checkout or the provider's console. It is a guard against accidental overspend, not an authority.
-5. **Single process.** The one-call-at-a-time lock and ledger serialisation are per process; `demo.py` runs one uvicorn process.
+4. **The ledger is local and resettable.** It guards this checkout's `var/live/` only. Deleting or moving that directory, pointing `LIVE_DATA_DIR` elsewhere, or using a second checkout starts a fresh $0 ledger. Calls made outside RegulaGraph (for example the provider's console, or `scripts/investigate.py --live`) are not counted. It is a guard against accidental overspend, not the authority on spend.
+5. **Single process.** The one-call-at-a-time lock and the ledger's read-check-append are serialised per process only; `demo.py` runs one uvicorn process. Two server processes sharing one `var/live/` could each reserve against the same remaining budget at the same time and together exceed it by up to one worst-case call each. The hash chain would then detect interleaved appends and block further calls.
 6. **Single local reviewer.** Reviews are not authenticated: whoever can reach 127.0.0.1 can review. There is no reviewer identity.
 7. **The model may still name an excluded circular from its own knowledge** in its interpretation text. No excluded provision or document is in the prompt, and none can become evidence, a provision or a target.
 8. **Aborted requests still cost.** If a newer selection supersedes a live run in the UI, the in-flight call still completes, is charged and is stored; only its display is dropped.
@@ -149,13 +191,13 @@ python scripts/demo.py --live --confirm-paid-calls --budget-usd 1 --port 8001
 
 The budget line shows the estimated spend.
 
-## Test results (P1 head)
+## Test results (head)
 
 | Run | Result |
 |---|---|
-| pytest, Python 3.13.12 | **780 passed, 1 skipped** (opt-in live Meta test) |
-| pytest, Python 3.11.15 | **780 passed, 1 skipped** |
-| pytest, Python 3.13.12, corpus PDFs removed | **615 passed, 166 skipped** (corpus-dependent tests skip; no failures) |
+| pytest, Python 3.13.12 | **785 passed, 1 skipped** (opt-in live Meta test) |
+| pytest, Python 3.11.15 | **785 passed, 1 skipped** |
+| pytest, Python 3.13.12, corpus PDFs removed | at P1: **615 passed, 166 skipped** (corpus-dependent tests skip; no failures) |
 | `node --test tests/js/view.test.mjs tests/js/controller.test.mjs tests/js/live.test.mjs` | **32 / 32** |
 | `ruff check app tests scripts` | clean |
 | Golden replay capture vs `main` | byte-identical; `eval/results/` unchanged |

@@ -23,9 +23,10 @@ from app.services import live as live_service
 from app.services import replay as replay_service
 from app.services.corpus import DEFAULT_RAW_DIR, load_manifest
 from app.services.evaluation import load_cases
-from app.services.meta_client import ChatMessage, CompletionResult, TokenUsage
+from app.services.meta_client import ChatMessage, CompletionResult, MetaModelAdapter, TokenUsage
 
 ROOT = Path(__file__).resolve().parents[1]
+REAL_COMPLETE = MetaModelAdapter.complete  # saved before the no_network fixture patches it
 RESULTS = ROOT / "eval" / "results"
 BASE = "http://127.0.0.1:8000"
 TEST_KEY = "live-test-key-0123456789"
@@ -77,9 +78,12 @@ class FakeModel:
         self.error = error
         self.gate = gate
         self.prompts: list[list[ChatMessage]] = []
+        self.kwargs: list[dict] = []
+        self.settings: list[Settings] = []
 
     def complete(self, messages, **kwargs) -> CompletionResult:
         self.prompts.append(list(messages))
+        self.kwargs.append(kwargs)
         if self.gate is not None:
             self.gate.wait(10)
         if self.error is not None:
@@ -99,7 +103,7 @@ def live_env(monkeypatch, tmp_path):
         monkeypatch.setenv(k, v)
     get_settings.cache_clear()
     model = FakeModel()
-    monkeypatch.setattr(live_service, "MetaModelAdapter", lambda settings: model)
+    monkeypatch.setattr(live_service, "MetaModelAdapter", lambda settings: model.settings.append(settings) or model)
     yield model
     get_settings.cache_clear()
 
@@ -674,3 +678,40 @@ def test_review_of_one_run_cannot_target_another(live_env, live_run, view) -> No
     assert other["report_id"] != live_run["report_id"]
     r = post_review(make_client(), live_run, content_digest=other["content_digest"])
     assert r.status_code == 422
+
+
+# --- live-only output-token ceiling (4096) -----------------------------------------------------------------
+
+@needs_corpus
+def test_live_calls_use_the_4096_ceiling_and_reserve_it_as_worst_case(live_env, view) -> None:
+    out = post_live(make_client(), body(view)).json()
+    assert live_env.settings[0].meta_max_completion_tokens == 4096  # the adapter's own cap
+    assert live_env.kwargs[0]["max_completion_tokens"] == 4096
+    reserve = ledger_records()[0]
+    assert reserve["amount_usd"] == live_service.worst_case_cost(live_env.prompts[0], 4096)
+    assert reserve["amount_usd"] > live_service.worst_case_cost(live_env.prompts[0], 2048)
+    run = live_service.load_run(get_settings(), out["report_id"])
+    assert run.outcome.model_call.max_completion_tokens == 4096
+    assert get_settings().meta_max_completion_tokens == 2048  # replay and CLI settings are untouched
+
+
+def test_live_ceiling_cannot_be_configured_above_4096(monkeypatch) -> None:
+    monkeypatch.setenv("LIVE_MAX_COMPLETION_TOKENS", "4097")
+    with pytest.raises(ValueError):
+        Settings()
+
+
+@pytest.mark.parametrize("requested, sent", [(4096, 4096), (8000, 4096), (1000, 1000)])
+def test_real_adapter_never_sends_more_than_the_live_ceiling(monkeypatch, requested, sent) -> None:
+    monkeypatch.setenv("META_INFERENCE_ENABLED", "true")
+    monkeypatch.setenv("MODEL_API_KEY", TEST_KEY)
+    payloads: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payloads.append(json.loads(request.content))
+        return httpx.Response(200, json={"id": "x", "model": "muse-spark-1.3", "choices": [
+            {"message": {"role": "assistant", "content": "{}"}, "finish_reason": "stop"}]})
+
+    adapter = MetaModelAdapter(live_service.live_settings(Settings()), transport=httpx.MockTransport(handler))
+    REAL_COMPLETE(adapter, [ChatMessage(role="user", content="q")], max_completion_tokens=requested)
+    assert payloads[0]["max_completion_tokens"] == sent

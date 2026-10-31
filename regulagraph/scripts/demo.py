@@ -122,7 +122,7 @@ def enable_live(host: str, budget_usd: float) -> Settings:
         st = live_service.budget_state(settings)
     except RegulaGraphError as exc:
         raise PreflightError(f"{exc.message} ({live_service.live_dir(settings)})") from exc
-    _ok(f"live mode: model {settings.meta_model_id}; budget {st.spent_usd:.4f} of {st.ceiling_usd:.2f} USD used "
+    _ok(f"live mode: model {settings.meta_model_id}, output cap {settings.live_max_completion_tokens} tokens; budget {st.spent_usd:.4f} of {st.ceiling_usd:.2f} USD used "
         f"(estimated); {st.calls_used} of {st.max_calls} calls; ledger {live_service.live_dir(settings)}")
     return settings
 
