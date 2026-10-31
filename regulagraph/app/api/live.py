@@ -1,8 +1,10 @@
-"""Local live investigation API (Sprint 3.5). Disabled unless the server runs in live mode.
+"""Local live investigation and review API (Sprint 3.5). Disabled unless the server runs in live mode.
 
 GET  /api/live/status                                  whether paid live calls are enabled; budget left
 GET  /api/live/documents                               the source documents a user may approve
 POST /api/live/investigations                          one paid Muse call over the approved documents
+GET  /api/live/investigations/{report_id}/reviews      review records for a live run
+POST /api/live/investigations/{report_id}/reviews      append a review record (the report is not changed)
 
 Every request must come from the loopback interface with a local Host header (DNS-rebinding
 guard). Every POST must be JSON (no form or "simple" cross-site request), carry an Origin equal
@@ -36,6 +38,8 @@ router = APIRouter(prefix="/api/live")
 
 LIVE_NOTICE = ("Live inference: Meta Muse was called once, with source context from the documents you approved "
                "only. Every relationship is an AI-generated candidate and unconfirmed.")
+REVIEW_MEANING = ("A review records a reviewer's opinion beside the immutable report. 'Reviewer accepted' is not a "
+                  "legal confirmation: the relationship stays an AI-generated, unconfirmed candidate.")
 COST_BASIS = "Estimated from reported token usage and published prices; not a provider invoice."
 LOOPBACK_CLIENTS = frozenset({"127.0.0.1", "::1"})
 LOCAL_HOSTNAMES = frozenset({"127.0.0.1", "localhost", "[::1]"})
@@ -91,6 +95,7 @@ class LiveOut(BaseModel):
     mode: Literal["live"] = "live"
     notice: str = LIVE_NOTICE
     verified_meaning: str = VERIFIED_MEANING
+    review_meaning: str = REVIEW_MEANING
     question: str
     approved_document_ids: list[str]
     created_at: datetime
@@ -103,6 +108,25 @@ class LiveOut(BaseModel):
     report_id: str
     content_digest: str
     budget: BudgetOut
+
+
+class ReviewOut(BaseModel):
+    review_id: str
+    report_id: str
+    content_digest: str
+    relationship_id: str
+    decision: Literal["accepted", "rejected", "needs_more_evidence"]
+    note: str
+    reviewed_at: datetime
+    relationship_status: Literal["candidate"]
+    legal_confirmation: Literal[False]
+
+
+class ReviewsOut(BaseModel):
+    report_id: str
+    content_digest: str
+    meaning: str = REVIEW_MEANING
+    reviews: list[ReviewOut]
 
 
 # --- request guards ------------------------------------------------------------------
@@ -210,3 +234,25 @@ async def investigate_live(request: Request) -> LiveOut:
     )
     return _redacted(LiveOut, out)
 
+
+@router.get("/investigations/{report_id}/reviews", response_model=ReviewsOut)
+def list_reviews(report_id: str, request: Request) -> ReviewsOut:
+    local_only(request)
+    settings = get_settings()
+    live_service.require_enabled(settings)
+    run = live_service.load_run(settings, report_id)
+    reviews = [ReviewOut.model_validate(r) for r in live_service.reviews_for(settings, report_id)]
+    return _redacted(ReviewsOut, ReviewsOut(report_id=report_id, content_digest=run.outcome.finalized.content_digest,
+                                            reviews=reviews))
+
+
+@router.post("/investigations/{report_id}/reviews", response_model=ReviewOut)
+async def add_review(report_id: str, request: Request) -> ReviewOut:
+    local_only(request)
+    settings = get_settings()
+    live_service.require_enabled(settings)
+    same_origin_json(request)
+    body = await _json_object(request)
+    record = await run_in_threadpool(live_service.add_review, settings, report_id, body.get("relationship_id"),
+                                     body.get("content_digest"), body.get("decision"), body.get("note"))
+    return _redacted(ReviewOut, ReviewOut.model_validate(record))

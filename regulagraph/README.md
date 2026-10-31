@@ -2,7 +2,7 @@
 
 RegulaGraph is an AI agent that investigates the impact of public Central Bank of Tunisia (BCT) regulations. It traces how changes affect related provisions and produces impact reports in which every claim cites a source passage.
 
-**Status: Sprint 3 (local, replay-only demo).** A web demo shows recorded Muse investigations, with relationships drawn as a graph and exact source evidence. See [Web demo](#web-demo-sprint-3-replay-only). The pipeline from Sprint 2 underneath:
+**Status: Sprint 3.5 (local demo: replay by default, opt-in live mode with review).** A web demo shows recorded Muse investigations, with relationships drawn as a graph and exact source evidence. See [Web demo](#web-demo-sprint-3-replay-only). An opt-in local live mode runs new questions over the documents you approve, and records reviewer decisions. See [Live mode](#live-mode-with-review-sprint-35-local-only-paid-calls). The pipeline from Sprint 2 underneath:
 
 1. real BCT circulars, hash-verified;
 2. provision spans with exact offsets;
@@ -84,7 +84,7 @@ It also starts the server with `META_INFERENCE_ENABLED=false`.
 
 **Demo script (about 2 minutes):**
 
-1. Note the permanent **REPLAY MODE** banner. No model is called, and there is no live endpoint.
+1. Note the permanent **REPLAY MODE** banner. No model is called. Live endpoints refuse every request unless the server was started with `--live`.
 2. Click **E01 · primary**. The question is "Quelle circulaire la circulaire n°2026-10 abroge-t-elle ou remplace-t-elle ?". The graph shows **Article 52 (2026-10)** with two dashed AI-candidate edges, **repeals** and **supersedes**, pointing to **circular 2018-16 (whole circular)**.
 3. Click either edge (or Tab to it and press Enter). The evidence panel shows:
    - the badges *AI-generated · Candidate · Unconfirmed*;
@@ -110,6 +110,27 @@ It also starts the server with `META_INFERENCE_ENABLED=false`.
 - **Headers:** a strict CSP (`default-src 'none'; script-src 'self'; style-src 'self'; …`) with no inline code and no CDN, plus `nosniff`, `no-referrer`, frame denial and `no-store`.
 - **Redaction:** responses are scrubbed of credentials.
 - **No API docs:** the FastAPI docs and OpenAPI routes are disabled.
+
+## Live mode with review (Sprint 3.5, local only, paid calls)
+
+```bash
+python scripts/demo.py --live --confirm-paid-calls                  # http://127.0.0.1:8000, budget 4.50 USD
+python scripts/demo.py --live --confirm-paid-calls --budget-usd 1   # lower cumulative ceiling (max 5.00)
+```
+
+Needs `MODEL_API_KEY` in `.env`. Without `--live`, the demo stays replay-only, and every `/api/live` call except `status` returns 403.
+
+**What it does.** The "Live investigation" panel takes a free-text question and the source documents you tick: any of the three French circulars, none ticked by default. It then makes one real Muse call. The result goes through the same `investigate()` → `finalize_report()` pipeline as a replay: quotations are re-located in the hash-verified PDF text, and every relationship is an unconfirmed AI candidate. For each relationship, a reviewer can record **accept**, **reject** or **needs more evidence**, with an optional note.
+
+**Guarantees (`app/services/live.py`, `app/api/live.py`).**
+
+- **Allowlist.** Only the approved documents are passed to retrieval and the prompt. Before the call, the prompt's *source context* is checked to contain only approved documents and provisions. The question itself is the user's text and may mention any circular. After the call, the report is checked to reference only approved documents. A model answer that targets an excluded document is rejected (`unknown_target`).
+- **Spending.** One call at a time. Before each call the worst case is reserved in `var/live/ledger.jsonl`, an append-only, hash-chained ledger: prompt UTF-8 bytes as input tokens, plus the completion cap. The call is refused if it could pass the cumulative ceiling or the call cap (40). Afterwards the reservation is settled at the cost of the reported usage. Costs are estimates from published prices, not invoices. If the ledger is modified, all calls are blocked.
+- **Requests.** Accepted only from a loopback client with a `127.0.0.1` or `localhost` Host header. POSTs must also be JSON with this server's `Origin`, not marked cross-site, and include `"confirm_paid_call": true`. The UI clears its confirmation box after every call.
+- **Reviews never change reports.** A live run is written once to `var/live/runs/<report_id>.json` and never rewritten. A review is a separate hash-chained record in `var/live/reviews.jsonl`, bound to the run's `report_id`, `content_digest` and `relationship_id`. *Reviewer accepted* is a reviewer's opinion, not a legal confirmation: the relationship stays an unconfirmed AI candidate.
+- **Replay is unchanged.** `tests/test_replay_golden.py` pins the byte-exact responses of the four replays, in both replay-only and live mode.
+
+`var/` is git-ignored.
 
 ## Demo (reproducible, no paid call)
 
@@ -240,7 +261,7 @@ Gold quotes are checked automatically against the extracted text. The cases were
 
 ## Known limitations
 
-- **Demo is replay-only and local.** It shows four recorded investigations. It cannot answer new questions, and there is no deployment. On phones the graph scrolls sideways inside its box, and the relationship list below it carries the same information.
+- **Demo is local.** By default it shows four recorded investigations. New questions need the opt-in live mode: paid, loopback only, over the three French circulars. There is no deployment. On phones the graph scrolls sideways inside its box, and the relationship list below it carries the same information.
 
 - **Live evidence is thin.** 5 of 13 cases have been run live. Reasoning can exhaust the 2,048-token budget on large two-document prompts (E10).
 - **Semantic errors pass validation.** A wrong relation type, or a link to the wrong but real target, is published as a candidate. Review is required before any use.

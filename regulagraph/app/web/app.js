@@ -3,13 +3,16 @@
 import {
   NODE_HALF_HEIGHT,
   NODE_HALF_WIDTH,
+  REVIEW_ACTIONS,
   budgetText,
   buildGraph,
   edgePath,
   errorMessage,
   evaluationRows,
   inspectorModel,
+  latestReviews,
   liveCallText,
+  reviewStatusText,
   stateMessage,
 } from "./view.js";
 
@@ -64,6 +67,8 @@ function clearResult() {
   $("graph-wrap").hidden = true;
   $("rejected").hidden = true;
   $("rejected").replaceChildren();
+  selectedId = null;
+  reviews = new Map();
   showInspector(null);
 }
 
@@ -89,6 +94,8 @@ async function loadScenarios() {
 }
 
 let current = null;
+let selectedId = null; // relationship shown in the inspector
+let reviews = new Map(); // live runs only: relationship_id -> latest review record of `current`
 // Latest request wins: each selection gets a new sequence number and aborts the previous request.
 // A response or error for a superseded selection is dropped, so it can never overwrite the UI.
 let replaySeq = 0;
@@ -208,6 +215,7 @@ function renderList(replay) {
 }
 
 function selectRelationship(id) {
+  selectedId = id;
   document.querySelectorAll("[data-relationship]").forEach((n) =>
     n.classList.toggle("selected", n.getAttribute("data-relationship") === id));
   showInspector(current ? inspectorModel(current, id) : null);
@@ -251,6 +259,57 @@ function showInspector(model) {
   } else {
     box.append(el("p", { className: "hint", text: "No interpretation recorded." }));
   }
+  if (current && current.mode === "live" && selectedId) box.append(reviewSection(current, selectedId));
+}
+
+// --- review (live runs only) ------------------------------------------------------------
+
+function reviewSection(live, relId) {
+  const section = el("section", { className: "review" });
+  section.append(el("h4", { text: "Your review" }), el("p", { className: "hint", text: live.review_meaning }),
+    el("p", { className: "review-status", text: reviewStatusText(reviews.get(relId)) }));
+  const note = el("textarea", { attrs: { id: "review-note", rows: 2, maxlength: 1000, "aria-label": "Review note (optional)",
+    placeholder: "Note (optional)" } });
+  const actions = el("div", { className: "review-actions" });
+  for (const [decision, label] of REVIEW_ACTIONS) {
+    const button = el("button", { className: "review-btn", text: label, attrs: { type: "button", "data-review": decision } });
+    button.addEventListener("click", () => submitReview(live, relId, decision, String(note.value || "")));
+    actions.append(button);
+  }
+  section.append(note, actions, el("p", { className: "review-error", attrs: { id: "review-error" } }));
+  return section;
+}
+
+async function submitReview(live, relId, decision, note) {
+  const reviewsUrl = `/api/live/investigations/${encodeURIComponent(live.report_id)}/reviews`;
+  let record;
+  try {
+    record = await api(reviewsUrl, {
+      method: "POST", headers: JSON_HEADERS,
+      body: JSON.stringify({ relationship_id: relId, content_digest: live.content_digest, decision, note }),
+    });
+  } catch (err) {
+    if (current === live && selectedId === relId) {
+      const m = errorMessage(err.status || 0, err.body);
+      $("review-error").textContent = `Review not recorded. ${m.title}: ${m.body}`;
+    }
+    return;
+  }
+  if (current !== live || !record || record.relationship_id !== relId) return; // a newer result is shown
+  reviews.set(relId, record);
+  if (selectedId === relId) showInspector(inspectorModel(current, relId));
+}
+
+async function loadReviews(live) {
+  let data;
+  try {
+    data = await api(`/api/live/investigations/${encodeURIComponent(live.report_id)}/reviews`);
+  } catch {
+    return; // reviews can still be recorded; existing ones are just not shown
+  }
+  if (current !== live || !data || data.report_id !== live.report_id) return;
+  reviews = latestReviews(data.reviews);
+  if (selectedId) showInspector(inspectorModel(current, selectedId));
 }
 
 // --- live investigation (local live mode only) -----------------------------------------
@@ -331,6 +390,7 @@ async function runLive() {
   $("live-budget").textContent = budgetText(live.budget);
   $("recording").replaceChildren(el("span", { className: "badge live", text: "Live" }), el("span", { text: liveCallText(live) }));
   renderBody(live);
+  loadReviews(live);
 }
 
 // --- evaluation ----------------------------------------------------------------------

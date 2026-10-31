@@ -1,4 +1,4 @@
-"""Local live investigation (Sprint 3.5).
+"""Local live investigation with human review (Sprint 3.5).
 
 A live run is the Sprint 2 pipeline (``investigate`` -> ``finalize_report``) with a real Muse call,
 over source documents the user approved. Guarantees, all enforced here on the server:
@@ -18,7 +18,10 @@ over source documents the user approved. Guarantees, all enforced here on the se
    ledger; the call is refused if it could exceed the ceiling or the call cap. After the call the
    reservation is settled at the cost of the reported usage (or kept, if usage is unknown). An
    unsettled reservation (crash during a call) counts as spent. A corrupt ledger blocks all calls.
-5. **Runs are immutable.** A finalized run is written once (exclusive create) and never rewritten.
+5. **Reviews never touch reports.** A finalized run is written once (exclusive create) and never
+   rewritten. A review is a separate record in an append-only, hash-chained log, bound to
+   (report_id, content_digest, relationship_id). It is a reviewer's opinion: the relationship stays
+   an AI-generated candidate, and no review is a legal confirmation.
 
 Costs are estimates from published token prices (``evaluation.approx_cost_usd``), not provider
 invoices.
@@ -32,7 +35,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from app.core import ids
 from app.core.config import Settings
@@ -47,10 +50,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_LIVE_DIR = PROJECT_ROOT / "var" / "live"
 LIVE_LANGUAGE = "fr"
 MAX_QUESTION_CHARS = 500
+MAX_NOTE_CHARS = 1000
 HARD_BUDGET_CEILING_USD = 5.0  # PM authorisation for Sprint 3.5; settings cannot exceed it
 PROMPT_TOKEN_OVERHEAD = 64  # chat-template tokens per request, on top of the prompt's UTF-8 bytes
+REVIEW_DECISIONS = ("accepted", "rejected", "needs_more_evidence")
 _REPORT_ID = re.compile(r"^rep_[0-9a-f]{32}$")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
+_CONTROL_EXCEPT_NEWLINE = re.compile(r"[\x00-\x09\x0b-\x1f\x7f]")
 _TAG_ID = re.compile(r'<(document|provision) id="([^"]*)"')
 
 
@@ -360,7 +366,7 @@ class GuardedAdapter:
         return result
 
 
-# --- runs --------------------------------------------------------------------------------
+# --- runs and reviews -------------------------------------------------------------------
 
 def _now() -> str:
     return datetime.now(UTC).isoformat()
@@ -411,6 +417,51 @@ def load_run(settings: Settings, report_id: str) -> LiveRun:
                        cost_usd=data["cost_usd"], created_at=data["created_at"])
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise LiveStoreUnavailable("the stored live run failed validation", details={"report_id": report_id}) from exc
+
+
+def reviews_log(settings: Settings) -> ChainedLog:
+    return ChainedLog(live_dir(settings) / "reviews.jsonl")
+
+
+Decision = Literal["accepted", "rejected", "needs_more_evidence"]
+
+
+def add_review(settings: Settings, report_id: str, relationship_id: object, content_digest: object,
+               decision: object, note: object) -> dict[str, Any]:
+    """Append one review record. The stored run and its finalized report are only read."""
+    run = load_run(settings, report_id)
+    if content_digest != run.outcome.finalized.content_digest:
+        raise InvalidLiveRequest("The review does not match this run's content digest.")
+    if relationship_id not in {r.relationship_id for r in run.outcome.finalized.report().relationships}:
+        raise InvalidLiveRequest("The relationship is not part of this run.")
+    if decision not in REVIEW_DECISIONS:
+        raise InvalidLiveRequest("Unknown review decision.", details={"allowed": list(REVIEW_DECISIONS)})
+    if note is None:
+        note = ""
+    if not isinstance(note, str) or len(note) > MAX_NOTE_CHARS or _CONTROL_EXCEPT_NEWLINE.search(note):
+        raise InvalidLiveRequest(f"The note must be text of at most {MAX_NOTE_CHARS} characters.")
+    with _store_lock:
+        return reviews_log(settings).append({
+            "review_id": uuid.uuid4().hex,
+            "report_id": report_id,
+            "content_digest": content_digest,
+            "relationship_id": relationship_id,
+            "decision": decision,
+            "note": redact(note.strip(), configured_secrets(settings)),
+            "reviewed_at": _now(),
+            # A review is an opinion recorded beside the immutable report; it changes nothing in it.
+            "relationship_status": "candidate",
+            "legal_confirmation": False,
+        })
+
+
+def reviews_for(settings: Settings, report_id: str) -> list[dict[str, Any]]:
+    """Review records for one run, in append order (the last one per relationship is current)."""
+    run = load_run(settings, report_id)
+    with _store_lock:
+        records = reviews_log(settings).read()
+    digest = run.outcome.finalized.content_digest
+    return [r for r in records if r.get("report_id") == report_id and r.get("content_digest") == digest]
 
 
 # --- the live investigation -------------------------------------------------------------

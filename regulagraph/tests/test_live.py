@@ -161,6 +161,9 @@ def test_live_mode_is_off_by_default_and_nothing_runs(default_env, tmp_path, mon
     r = post_live(client, {"question": "x", "document_ids": [], "confirm_paid_call": True})
     assert r.status_code == 403 and r.json()["error"]["code"] == "live_mode_disabled"
     assert client.get("/api/live/documents").status_code == 403
+    review = "/api/live/investigations/rep_" + "0" * 32 + "/reviews"
+    assert client.post(review, json={}, headers={"Origin": BASE}).status_code == 403
+    assert client.get(review).status_code == 403
     assert default_env == [] and not (tmp_path / "live").exists()  # no adapter, no ledger
 
 
@@ -545,3 +548,129 @@ def test_demo_live_refuses_public_binding_and_over_budget(monkeypatch, host, bud
     with pytest.raises(demo.PreflightError):
         demo.enable_live(host, budget)
     get_settings.cache_clear()
+
+
+# --- P1: relationship review records ----------------------------------------------------------------------
+
+@pytest.fixture
+def live_run(live_env, view):
+    """One live run with the recorded E01 answer: two candidate relationships."""
+    live_env.text = e01_answer()
+    out = post_live(make_client(), body(view)).json()
+    assert len(out["relationships"]) == 2
+    return out
+
+
+def reviews_url(report_id: str) -> str:
+    return f"/api/live/investigations/{report_id}/reviews"
+
+
+def post_review(client, run, **fields):
+    payload = {"relationship_id": run["relationships"][0]["relationship_id"], "content_digest": run["content_digest"],
+               "decision": "accepted", "note": "Checked against the PDF."}
+    payload.update(fields)
+    return client.post(reviews_url(run["report_id"]), json=payload, headers={"Origin": BASE})
+
+
+def _run_file(report_id: str) -> Path:
+    return live_dir() / "runs" / f"{report_id}.json"
+
+
+@needs_corpus
+def test_review_is_a_separate_record_and_the_report_is_unchanged(live_env, live_run) -> None:
+    client = make_client()
+    run_file = _run_file(live_run["report_id"])
+    before = hashlib.sha256(run_file.read_bytes()).hexdigest()
+    prompts = len(live_env.prompts)
+
+    r = post_review(client, live_run)
+    assert r.status_code == 200, r.text
+    rec = r.json()
+    assert rec["decision"] == "accepted" and rec["note"] == "Checked against the PDF."
+    assert rec["relationship_status"] == "candidate" and rec["legal_confirmation"] is False
+    assert rec["content_digest"] == live_run["content_digest"]
+    rel2 = live_run["relationships"][1]["relationship_id"]
+    assert post_review(client, live_run, relationship_id=rel2, decision="needs_more_evidence", note=None).status_code == 200
+    assert post_review(client, live_run, decision="rejected", note="").status_code == 200
+
+    listed = client.get(reviews_url(live_run["report_id"])).json()
+    assert [x["decision"] for x in listed["reviews"]] == ["accepted", "needs_more_evidence", "rejected"]
+    assert "not a legal confirmation" in listed["meaning"]
+
+    assert hashlib.sha256(run_file.read_bytes()).hexdigest() == before  # the finalized run is never rewritten
+    stored = live_service.load_run(get_settings(), live_run["report_id"])
+    assert stored.outcome.finalized.content_digest == live_run["content_digest"]
+    assert all(r.status == "candidate" for r in stored.outcome.finalized.report().relationships)
+    assert len(live_env.prompts) == prompts  # reviewing never calls the model
+    lines = (live_dir() / "reviews.jsonl").read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 3 and json.loads(lines[1])["prev"] == json.loads(lines[0])["hash"]
+
+
+@needs_corpus
+@pytest.mark.parametrize("fields, status, message", [
+    ({"content_digest": "0" * 64}, 422, "content digest"),
+    ({"relationship_id": "rel_" + "0" * 32}, 422, "not part of this run"),
+    ({"decision": "confirmed"}, 422, "Unknown review decision"),
+    ({"decision": "legally_confirmed"}, 422, "Unknown review decision"),
+    ({"decision": None}, 422, "Unknown review decision"),
+    ({"note": "x" * 1001}, 422, "at most 1000"),
+    ({"note": 5}, 422, "The note must be text"),
+    ({"note": "bell\x07"}, 422, "The note must be text"),
+])
+def test_invalid_reviews_are_refused(live_run, fields, status, message) -> None:
+    r = post_review(make_client(), live_run, **fields)
+    assert r.status_code == status and message in r.json()["error"]["message"]
+    assert not (live_dir() / "reviews.jsonl").exists()
+
+
+@needs_corpus
+@pytest.mark.parametrize("report_id, statuses", [
+    ("rep_" + "0" * 32, {404}),
+    ("rep_xyz", {404}),
+    ("..%2F..%2Fledger", {404, 405}),  # decoded traversal never reaches the handler (static mount: 404/405)
+])
+def test_reviews_for_unknown_or_malformed_runs_are_refused(live_run, report_id, statuses) -> None:
+    client = make_client()
+    assert client.get(reviews_url(report_id)).status_code in statuses
+    r = client.post(reviews_url(report_id), json={"decision": "accepted"}, headers={"Origin": BASE})
+    assert r.status_code in statuses
+    assert not (live_dir() / "reviews.jsonl").exists()
+
+
+@needs_corpus
+def test_review_posts_need_the_same_protections(live_run) -> None:
+    client = make_client()
+    url = reviews_url(live_run["report_id"])
+    assert client.post(url, json={}, headers={"Origin": "http://evil.example"}).status_code == 403
+    assert client.post(url, content=b"{}", headers={"Origin": BASE, "Content-Type": "text/plain"}).status_code == 415
+    remote = TestClient(create_app(), base_url=BASE, client=("10.0.0.5", 1))
+    assert remote.post(url, json={}, headers={"Origin": BASE}).status_code == 403
+
+
+@needs_corpus
+def test_review_log_tampering_is_detected(live_run) -> None:
+    client = make_client()
+    assert post_review(client, live_run).status_code == 200
+    path = live_dir() / "reviews.jsonl"
+    path.write_text(path.read_text(encoding="utf-8").replace('"accepted"', '"rejected"'), encoding="utf-8")
+    assert client.get(reviews_url(live_run["report_id"])).status_code == 503
+    assert post_review(client, live_run).status_code == 503
+
+
+@needs_corpus
+def test_tampered_run_is_refused_for_review(live_run) -> None:
+    run_file = _run_file(live_run["report_id"])
+    data = json.loads(run_file.read_text(encoding="utf-8"))
+    snap = data["outcome"]["finalized"]["snapshot"]
+    data["outcome"]["finalized"]["snapshot"] = snap.replace("candidate", "confirmed", 1)
+    run_file.write_text(json.dumps(data), encoding="utf-8")
+    r = post_review(make_client(), live_run)
+    assert r.status_code == 503 and r.json()["error"]["code"] == "live_store_unavailable"
+
+
+@needs_corpus
+def test_review_of_one_run_cannot_target_another(live_env, live_run, view) -> None:
+    other = post_live(make_client(), body(view)).json()  # same answer, new run: new report_id and digest
+    assert other["report_id"] != live_run["report_id"]
+    r = post_review(make_client(), live_run, content_digest=other["content_digest"])
+    assert r.status_code == 422

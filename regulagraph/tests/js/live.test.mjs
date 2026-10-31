@@ -33,6 +33,7 @@ function liveFor(question, tag) {
         quote: `Live quote ${tag}`, source_text_verified: true, pdf_url: null }],
     }],
     rejected: [], report_id: `rep-${tag}`, content_digest: `digest-${tag}`, budget: BUDGET,
+    review_meaning: "A review is not a legal confirmation.",
   };
 }
 
@@ -42,10 +43,11 @@ const flush = async () => {
 };
 
 let boots = 0;
-async function boot({ enabled = true } = {}) {
+async function boot({ enabled = true, storedReviews = [] } = {}) {
   const document = new FakeDocument();
   globalThis.document = document;
   const posts = [];
+  const reviewPosts = [];
   const pendingReplay = new Map();
   globalThis.fetch = (url, options = {}) => {
     if (url === "/api/scenarios") return Promise.resolve(response(200, SCENARIOS));
@@ -62,6 +64,19 @@ async function boot({ enabled = true } = {}) {
       posts.push({ options, body: JSON.parse(options.body), resolve, signal: options.signal });
       return promise;
     }
+    const review = /\/api\/live\/investigations\/([\w-]+)\/reviews$/.exec(url);
+    if (review && options.method === "POST") {
+      let resolve;
+      const promise = new Promise((res) => {
+        resolve = res;
+      });
+      reviewPosts.push({ url, body: JSON.parse(options.body), headers: options.headers, resolve });
+      return promise;
+    }
+    if (review) {
+      return Promise.resolve(response(200, { report_id: review[1], content_digest: "d", meaning: "m",
+        reviews: storedReviews }));
+    }
     const m = /\/api\/scenarios\/(\w+)\/replay/.exec(url);
     if (m) {
       return new Promise((res) => pendingReplay.set(m[1], res));
@@ -73,7 +88,7 @@ async function boot({ enabled = true } = {}) {
   const $ = (id) => document.getElementById(id);
   const docBoxes = () => document.querySelectorAll("[data-live-doc]");
   return {
-    $, posts, pendingReplay, docBoxes,
+    $, posts, reviewPosts, pendingReplay, docBoxes,
     fill: ({ question = "Which circular amends which?", docs = ["d-one"], confirm = true } = {}) => {
       $("live-question").value = question;
       for (const box of docBoxes()) box.checked = docs.includes(box.getAttribute("data-live-doc"));
@@ -185,4 +200,74 @@ test("server refusals are shown, not swallowed", async () => {
   app.posts[0].resolve(response(429, { error: { code: "live_budget_exhausted", message: "The live budget could be exceeded" } }));
   await flush();
   assert.match(app.ui().state, /The live budget could be exceeded/);
+});
+
+// --- P1: review controls --------------------------------------------------------------------
+
+async function liveShown(options) {
+  const app = await boot(options);
+  app.fill();
+  await app.run();
+  app.posts[0].resolve(response(200, liveFor("Which circular amends which?", "A")));
+  await flush();
+  return app;
+}
+
+const reviewRecord = (decision, at = "2026-10-31T10:00:00Z") => ({
+  review_id: "r1", report_id: "rep-A", content_digest: "digest-A", relationship_id: "rel-A", decision, note: "",
+  reviewed_at: at, relationship_status: "candidate", legal_confirmation: false,
+});
+
+test("live results show review controls with the not-a-legal-confirmation notice", async () => {
+  const app = await liveShown();
+  const buttons = app.$("inspector").querySelectorAll("[data-review]").map((b) => b.getAttribute("data-review"));
+  assert.deepEqual(buttons, ["accepted", "rejected", "needs_more_evidence"]);
+  assert.match(app.ui().inspector, /A review is not a legal confirmation/);
+  assert.match(app.ui().inspector, /No review recorded/);
+});
+
+test("existing reviews are loaded and the latest one is shown", async () => {
+  const app = await liveShown({ storedReviews: [reviewRecord("rejected", "T1"), reviewRecord("accepted", "T2")] });
+  assert.match(app.ui().inspector, /Reviewer accepted · T2\. Still an AI-generated candidate: not a legal confirmation/);
+});
+
+test("accepting sends the run's digest and relationship, then shows the recorded decision", async () => {
+  const app = await liveShown();
+  app.$("review-note").value = "Checked p.3";
+  app.$("inspector").querySelector('[data-review="accepted"]').click();
+  await flush();
+  assert.equal(app.reviewPosts.length, 1);
+  const post = app.reviewPosts[0];
+  assert.equal(post.url, "/api/live/investigations/rep-A/reviews");
+  assert.equal(post.headers["Content-Type"], "application/json");
+  assert.deepEqual(post.body, { relationship_id: "rel-A", content_digest: "digest-A", decision: "accepted",
+    note: "Checked p.3" });
+  post.resolve(response(200, reviewRecord("accepted")));
+  await flush();
+  assert.match(app.ui().inspector, /Reviewer accepted · 2026-10-31T10:00:00Z/);
+  assert.match(app.ui().inspector, /AI-generatedCandidateUnconfirmed/, "badges unchanged by a review");
+  assert.equal(app.posts.length, 1, "reviewing never starts a live call");
+});
+
+test("a refused review is reported and nothing is shown as recorded", async () => {
+  const app = await liveShown();
+  app.$("inspector").querySelector('[data-review="rejected"]').click();
+  await flush();
+  app.reviewPosts[0].resolve(response(422, { error: { message: "The review does not match this run's content digest." } }));
+  await flush();
+  assert.match(app.$("review-error").textContent, /Review not recorded.*content digest/);
+  assert.match(app.ui().inspector, /No review recorded/);
+});
+
+test("replay results never show review controls", async () => {
+  const app = await boot();
+  app.$("scenario-list").querySelector('[data-scenario="E01"]').click();
+  await flush();
+  app.pendingReplay.get("E01")(response(200, {
+    ...liveFor("Question for E01?", "R"), mode: "replay", scenario: { id: "E01" },
+    recording: { file: "live_E01.json", recorded_at: "t", model_id: "m" },
+  }));
+  await flush();
+  assert.match(app.ui().inspector, /Live quote R/);
+  assert.equal(app.$("inspector").querySelectorAll("[data-review]").length, 0);
 });

@@ -123,3 +123,4 @@ main { padding: 1rem; }
 .review textarea { width: 100%; box-sizing: border-box; }
 .review-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
 .review-status { font-weight: 600; }
+.review-error { color: var(--err); font-size: .85rem; }

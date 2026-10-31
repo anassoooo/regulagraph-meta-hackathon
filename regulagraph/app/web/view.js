@@ -246,7 +246,32 @@ export function evaluationRows(evaluation) {
   }));
 }
 
-// --- live mode (Sprint 3.5) --------------------------------------------------------------
+// --- live review (Sprint 3.5) ------------------------------------------------------------
+
+export const REVIEW_ACTIONS = [
+  ["accepted", "Accept (reviewer)"],
+  ["rejected", "Reject"],
+  ["needs_more_evidence", "Needs more evidence"],
+];
+
+export const REVIEW_LABELS = {
+  accepted: "Reviewer accepted",
+  rejected: "Reviewer rejected",
+  needs_more_evidence: "Reviewer: needs more evidence",
+};
+
+// Latest record per relationship, in the order the server returned them (append order).
+export function latestReviews(records) {
+  const latest = new Map();
+  for (const r of records || []) latest.set(r.relationship_id, r);
+  return latest;
+}
+
+export function reviewStatusText(record) {
+  if (!record) return "No review recorded.";
+  const label = REVIEW_LABELS[record.decision] || "Unknown decision";
+  return `${label} · ${record.reviewed_at}. Still an AI-generated candidate: not a legal confirmation.`;
+}
 
 export function liveCallText(live) {
   const c = live.call || {};
