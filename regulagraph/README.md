@@ -37,7 +37,7 @@ app/
 data/manifest.json             corpus: URLs, dates, SHA-256, extraction notes (PDFs not committed)
 eval/cases.json                13 manually written cases (positive and negative)
 eval/results/                  recorded evaluation runs
-scripts/                       fetch_corpus, demo, smoke_test, investigate, run_eval, build_snapshot
+scripts/                       fetch_corpus, demo, smoke_test, investigate, run_eval, build_snapshot, minimize_recordings
 tests/js/                      node --test unit tests for the client view logic, journey helper
 docs/                          EXTRACTION_QUALITY.md, SPRINT2_REQUIREMENTS.md, REVIEW_HANDOFF_SPRINT2/3.md
 ```
@@ -102,7 +102,20 @@ It also starts the server with `META_INFERENCE_ENABLED=false`.
 - Every relationship is an AI-generated **candidate** and **unconfirmed**. No control can confirm one.
 - *Validated* in the evaluation view means the recorded answer matched the author's annotation. Neither the annotations nor the relationships have been reviewed by a domain expert.
 
-**Content shown (PM decision D3).** Exact evidence quotations, provision labels, page numbers, character offsets and official BCT PDF links only. The API never returns full article text, and no PDFs or extracted text are committed.
+**Content shown (PM decision D3).** Exact evidence quotations, provision labels, page numbers, character offsets and official BCT PDF links only. The API never returns full article text.
+
+**What is committed (corrected 2026-11-01).**
+- **Never committed:** PDFs.
+- **Committed:** URLs, hashes, titles, provision IDs and offsets, and short evidence quotations of at most 600 characters.
+- **Recordings** (`eval/results/live_*.json`): they keep the model's raw output, which contains only those short quotations, and **no provision text**. `tests/test_source_text_policy.py` fails if any tracked file contains more than 600 consecutive characters of corpus text.
+- **Correction:** from 2026-10-30 until this remediation, the recordings also held the full extracted text of every provision shown to the model: about 47% of circular 2026-10's extracted text, and two articles of 2018-16. `scripts/minimize_recordings.py` removed it from the current files, but it remains in git history (see `docs/HISTORY_REMEDIATION.md`).
+
+**Quotations are exact as extracted, not as printed.** A quotation is the text found at those offsets in the PDF's extracted text layer. It can differ visually from the printed page:
+- line breaks follow the layout;
+- extra spaces appear, for example "2018 , relative" and "l'article  14";
+- words can be split, for example "le s dossiers" in E12, where the printed page reads "les dossiers".
+
+The evidence panel says so under every quotation. The official PDF link is the reference.
 
 **Security.**
 

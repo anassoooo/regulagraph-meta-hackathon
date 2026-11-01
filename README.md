@@ -57,7 +57,19 @@ In regulatory work, an answer that cannot be traced to the exact source text is 
 | **Local replay** (default) | `python scripts/demo.py` | None | On every replay, against the local PDFs |
 | **Local live mode** | `python scripts/demo.py --live --confirm-paid-calls` | One paid call per run, with budget guard | On every run |
 
-The hosted snapshot contains only the page, the recorded API responses and short exact quotations, with links to the official PDFs. It contains no PDFs, no full provision text, no key and no server code.
+### Local live app vs. static snapshot
+
+| | Local live app (`demo.py --live`) | Static snapshot (hosted) |
+|---|---|---|
+| Runs | FastAPI server on `127.0.0.1` only | Static files on a CDN, no server code |
+| Needs | Python, the BCT PDFs (fetched by you), a Meta API key | A browser |
+| Model calls | One paid Muse call per "Run live investigation", after an explicit confirmation | Never |
+| Questions | Any question over the circulars you tick | The 4 curated scenarios only |
+| Quotation check | Re-located in the PDF text on every replay and live run | Done once, when the snapshot was built; the banner shows the build commit and date |
+| Human review | Accept, reject or "needs more evidence", stored locally in a hash-chained log | Not available |
+| Budget guard | Worst-case reservation per call, a cumulative ceiling (default $4.50, max $5.00) and at most 40 calls | Not applicable |
+
+The snapshot contains the page, the recorded API responses and short exact quotations (as extracted, see below), with links to the official PDFs. It contains no PDFs, no full provision text, no key and no server code.
 
 ### Run locally
 
@@ -73,6 +85,30 @@ python scripts/demo.py            # preflight, then http://127.0.0.1:8000 (repla
 pytest                            # no network, no key
 ```
 
+### Meta API key and live mode (optional, paid)
+
+Replay, tests and the snapshot need no key. To run new questions against Muse:
+
+1. **Get a key.** Create one in the Meta Model API developer dashboard (API keys). Check that your credits are active there: the API has no balance endpoint, so RegulaGraph cannot check them for you.
+2. **Configure it locally.** The key is never committed (`.env` is git-ignored) and never printed or logged:
+   ```bash
+   cd regulagraph
+   cp .env.example .env
+   # edit .env and set:  MODEL_API_KEY=<your key>
+   # keep META_INFERENCE_ENABLED=false in .env: the scripts below enable inference only when asked
+   ```
+   The other defaults in `.env.example` are what the recorded runs used: `META_API_BASE_URL=https://api.meta.ai/v1` and `META_MODEL_ID=muse-spark-1.3`.
+3. **Optional connectivity check.** One request of about 60 input tokens and at most 64 output tokens, under $0.001:
+   ```bash
+   META_INFERENCE_ENABLED=true python scripts/smoke_test.py --confirm-paid-call
+   ```
+4. **Start live mode.** It binds to `127.0.0.1` only:
+   ```bash
+   python scripts/demo.py --live --confirm-paid-calls                  # budget ceiling 4.50 USD
+   python scripts/demo.py --live --confirm-paid-calls --budget-usd 1   # lower ceiling (max 5.00)
+   ```
+   Open http://127.0.0.1:8000, tick the source circulars, type a question, tick "I confirm one paid Meta call" and run. Each run is one Muse call capped at 4,096 output tokens. Spending is estimated from published prices and recorded in `var/live/ledger.jsonl` (git-ignored). This is a local guard, not an account spending cap.
+
 **Demo path (about 2 minutes):**
 
 1. The page opens on scenario E01, "Which circular does circular 2026-10 repeal or replace?". The graph shows two candidate edges, `repeals` and `supersedes`, from Article 52 to circular 2018-16.
@@ -82,6 +118,18 @@ pytest                            # no network, no key
    - what the validators reject;
    - the 15 semantically wrong proposals that they cannot catch;
    - the cases that were never run live.
+
+## What was built during the hackathon
+
+The hackathon page lists the kickoff on 2026-10-26 and submissions due 2026-11-04, 9:00 PM ET. The build window we were given is **2026-10-27 to 2026-11-04**.
+
+Times below are git author dates (set by the committer's clock), corroborated where possible by GitHub pull-request timestamps. Eligibility is for the organisers to decide; this section only states the facts.
+
+| When (UTC) | Same moment in US Eastern (EDT) | Commits | Content |
+|---|---|---|---|
+| 2026-10-26 21:43–23:47 | 2026-10-26 17:43–19:47 | `c6b9cc5`, `76648f8`, `f9e0ccc`, `8ffe7b3`, `cb20c97`, `c3e2901` (PRs #1, #2) | **Scaffolding only:** a one-line README, empty package layout (14 lines, two commits by the GitHub Copilot coding agent) and `.gitkeep` directories. No functionality. |
+| 2026-10-27 00:34–01:07 | **2026-10-26 20:34–21:07** | `2b6bd13`, `b5ac759`, `ff4d963` (PR #3, opened 2026-10-27 00:35 UTC) | Sprint 1 foundation: data schemas, PDF text extraction, the Meta Model API client and integrity checks. **Ambiguous timing:** this is 2026-10-27 in UTC and in Central European time (the author's local time, 01:34–02:07), but 2026-10-26 in US Eastern time. |
+| 2026-10-30 to 2026-11-01 | same days | all later commits (PRs #3–#9) | Everything else: the real BCT corpus and provision spans, retrieval, the Muse investigation and validators, the evaluation set, all live Muse calls (2026-10-30), the web demo, live mode with human review, the UI work, the static snapshot and this remediation. |
 
 ## Evaluation and its limits
 
@@ -105,6 +153,8 @@ Details: [`regulagraph/eval/README.md`](regulagraph/eval/README.md).
 
 ## Source documents and licensing
 
-- **BCT documents:** the PDFs are the BCT's and are **not redistributed**: they are downloaded from bct.gov.tn and checked by hash. The BCT site terms allow exact quotation with the site cited as source, and links that name the site and open in a new window. RegulaGraph shows only short exact quotations, with their page and a link to the official PDF ([manifest](regulagraph/data/manifest.json)).
+- **BCT documents:** the PDFs are the BCT's and are **not redistributed**: they are downloaded from bct.gov.tn and checked by hash. The BCT site terms allow downloads for personal purposes, exact quotation with the site cited as source, and links that name the site and open in a new window. RegulaGraph shows only short quotations, with their page and a link to the official PDF ([manifest](regulagraph/data/manifest.json)). Whether the terms' exemption for official regulatory texts applies has not been confirmed, and nothing here is legal advice.
+- **Quotations are exact as extracted, not as printed.** They come from the PDF's text layer, which can differ visually from the printed page: line breaks, extra spaces, and words split by a space (E12 shows "le s dossiers" where the page reads "les dossiers"). The app says so under every quotation, and the official PDF is the reference.
+- **Correction:** from 2026-10-30 to 2026-11-01 the recorded evaluation runs also contained full extracted provision text (about 47% of circular 2026-10). It is removed from the current files, and a test now prevents it from returning. It remains in git history: see [`regulagraph/docs/HISTORY_REMEDIATION.md`](regulagraph/docs/HISTORY_REMEDIATION.md).
 - **Affiliation:** RegulaGraph is not affiliated with or endorsed by the BCT.
 - **Licences:** dependency licences are recorded in [`regulagraph/LICENSING.md`](regulagraph/LICENSING.md). The project's own licence has not been chosen yet.
