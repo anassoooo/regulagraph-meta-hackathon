@@ -10,8 +10,8 @@ import {
   errorMessage,
   evaluationRows,
   inspectorModel,
-  latestReviews,
   liveCallText,
+  mergeReviews,
   reviewStatusText,
   stateMessage,
 } from "./view.js";
@@ -69,6 +69,7 @@ function clearResult() {
   $("rejected").replaceChildren();
   selectedId = null;
   reviews = new Map();
+  reviewQueues = new Map();
   showInspector(null);
 }
 
@@ -95,7 +96,8 @@ async function loadScenarios() {
 
 let current = null;
 let selectedId = null; // relationship shown in the inspector
-let reviews = new Map(); // live runs only: relationship_id -> latest review record of `current`
+let reviews = new Map(); // live runs only: relationship_id -> highest-sequence review record of `current`
+let reviewQueues = new Map(); // `${report_id} ${relationship_id}` -> tail of that relationship's submissions
 // Latest request wins: each selection gets a new sequence number and aborts the previous request.
 // A response or error for a superseded selection is dropped, so it can never overwrite the UI.
 let replaySeq = 0;
@@ -280,7 +282,23 @@ function reviewSection(live, relId) {
   return section;
 }
 
-async function submitReview(live, relId, decision, note) {
+// Submissions for one relationship of one run are sent one at a time, in click order, so the server
+// appends them in that order. Displayed state only ever moves to a higher server sequence.
+function submitReview(live, relId, decision, note) {
+  const key = `${live.report_id} ${relId}`;
+  const tail = (reviewQueues.get(key) || Promise.resolve()).then(() => sendReview(live, relId, decision, note));
+  reviewQueues.set(key, tail.catch(() => {}));
+  return tail;
+}
+
+function applyReviews(live, records) {
+  if (current !== live) return; // another scenario or live run is shown: never apply it there
+  reviews = mergeReviews(reviews, records, live.report_id, live.content_digest);
+  if (selectedId) showInspector(inspectorModel(current, selectedId));
+}
+
+async function sendReview(live, relId, decision, note) {
+  if (current !== live) return; // superseded before it was sent
   const reviewsUrl = `/api/live/investigations/${encodeURIComponent(live.report_id)}/reviews`;
   let record;
   try {
@@ -295,9 +313,9 @@ async function submitReview(live, relId, decision, note) {
     }
     return;
   }
-  if (current !== live || !record || record.relationship_id !== relId) return; // a newer result is shown
-  reviews.set(relId, record);
-  if (selectedId === relId) showInspector(inspectorModel(current, relId));
+  if (!record || record.relationship_id !== relId) return;
+  applyReviews(live, [record]);
+  loadReviews(live); // reconcile with the server's authoritative log (merging is order-independent)
 }
 
 async function loadReviews(live) {
@@ -307,9 +325,8 @@ async function loadReviews(live) {
   } catch {
     return; // reviews can still be recorded; existing ones are just not shown
   }
-  if (current !== live || !data || data.report_id !== live.report_id) return;
-  reviews = latestReviews(data.reviews);
-  if (selectedId) showInspector(inspectorModel(current, selectedId));
+  if (!data || data.report_id !== live.report_id || data.content_digest !== live.content_digest) return;
+  applyReviews(live, data.reviews);
 }
 
 // --- live investigation (local live mode only) -----------------------------------------

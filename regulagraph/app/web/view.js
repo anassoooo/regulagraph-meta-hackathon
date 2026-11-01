@@ -260,11 +260,19 @@ export const REVIEW_LABELS = {
   needs_more_evidence: "Reviewer: needs more evidence",
 };
 
-// Latest record per relationship, in the order the server returned them (append order).
-export function latestReviews(records) {
-  const latest = new Map();
-  for (const r of records || []) latest.set(r.relationship_id, r);
-  return latest;
+// Merge review records into `known` (relationship_id -> record), keeping per relationship the record
+// with the highest server `sequence` (its position in the server's review log). The order
+// in which responses arrive therefore never matters: a stale read or a late response cannot replace a
+// newer decision. Records for another run, or without a valid sequence, are ignored.
+export function mergeReviews(known, records, reportId, contentDigest) {
+  const merged = new Map(known || []);
+  for (const r of records || []) {
+    if (!r || r.report_id !== reportId || r.content_digest !== contentDigest) continue;
+    if (!Number.isSafeInteger(r.sequence) || r.sequence < 1 || typeof r.relationship_id !== "string") continue;
+    const have = merged.get(r.relationship_id);
+    if (!have || r.sequence > have.sequence) merged.set(r.relationship_id, r);
+  }
+  return merged;
 }
 
 export function reviewStatusText(record) {

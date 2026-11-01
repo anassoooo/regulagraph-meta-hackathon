@@ -120,6 +120,7 @@ class ReviewOut(BaseModel):
     reviewed_at: datetime
     relationship_status: Literal["candidate"]
     legal_confirmation: Literal[False]
+    sequence: int  # position in the server's review log; a higher sequence is a later decision
 
 
 class ReviewsOut(BaseModel):

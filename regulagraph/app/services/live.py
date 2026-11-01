@@ -16,18 +16,30 @@ over source documents the user approved. Guarantees, all enforced here on the se
 4. **Spending.** One live call at a time. Before each call the worst-case cost (prompt bytes as
    input tokens, the completion cap as output tokens) is reserved in an append-only, hash-chained
    ledger; the call is refused if it could exceed the ceiling or the call cap. After the call the
-   reservation is settled at the cost of the reported usage (or kept, if usage is unknown). An
-   unsettled reservation (crash during a call) counts as spent. A corrupt ledger blocks all calls.
+   reservation is settled at the cost of the reported usage only if that usage is trustworthy
+   (``trusted_usage``: nonnegative integers, consistent totals, reasoning within completion, output
+   within the cap, input within the prompt bound); otherwise the worst case is kept. A settlement
+   is never negative and never exceeds its reservation, so it can never credit the ledger. An
+   unsettled reservation (crash during a call, or a failed settlement write) counts as spent at the
+   worst case, and a failed settlement also blocks further calls in this process until restart. A
+   ledger whose chain or amounts do not verify blocks all calls.
 5. **Reviews never touch reports.** A finalized run is written once (exclusive create) and never
-   rewritten. A review is a separate record in an append-only, hash-chained log, bound to
+   rewritten. A review is a separate record in an appended, hash-chained log, bound to
    (report_id, content_digest, relationship_id). It is a reviewer's opinion: the relationship stays
    an AI-generated candidate, and no review is a legal confirmation.
 
 Costs are estimates from published token prices (``evaluation.approx_cost_usd``), not provider
 invoices.
+
+Limits of the hash chain: it detects modification, reordering or removal of linked records, but not
+truncation to an earlier valid prefix (deleting the last records, or the whole file), because there
+is no trusted external anchor. Deleting the last ledger records therefore restores budget, and
+deleting the last review records removes reviews, without detection. This is a guard for a local
+demo, not a tamper-proof store or an account spending cap.
 """
 
 import json
+import math
 import re
 import threading
 import uuid
@@ -229,14 +241,17 @@ def check_outcome(outcome: InvestigationOutcome, scope: Scope) -> None:
 
 _GENESIS = "0" * 64
 _live_lock = threading.Lock()  # one paid call at a time, per process
+_settlement_failed = threading.Event()  # latched when a settlement fails; blocks calls until restart
 _store_lock = threading.RLock()  # serialises reads and appends of the ledger, runs and reviews
 
 
 class ChainedLog:
     """JSON lines where each record carries the SHA-256 of the previous one.
 
-    Appending never rewrites earlier lines. Reading verifies the whole chain, so an edited,
-    reordered or deleted record is detected and the log is refused (fail closed).
+    Appending never rewrites earlier lines. Reading verifies the whole chain, so an edited or
+    reordered record, or one removed before the last, is detected and the log is refused (fail
+    closed). Truncation to an earlier valid prefix (removing the last records, or the file) is not
+    detected: there is no trusted external anchor.
     """
 
     def __init__(self, path: Path) -> None:
@@ -291,10 +306,53 @@ class BudgetState:
         return round(max(self.ceiling_usd - self.spent_usd, 0.0), 5)
 
 
-def worst_case_cost(messages: Sequence[ChatMessage], max_completion_tokens: int) -> float:
+def prompt_token_bound(messages: Sequence[ChatMessage]) -> int:
     """Upper bound: a byte-level tokenizer never emits more tokens than UTF-8 bytes."""
-    prompt_tokens = sum(len(m.content.encode("utf-8")) for m in messages) + PROMPT_TOKEN_OVERHEAD
-    return approx_cost_usd(prompt_tokens, max_completion_tokens)
+    return sum(len(m.content.encode("utf-8")) for m in messages) + PROMPT_TOKEN_OVERHEAD
+
+
+def worst_case_cost(messages: Sequence[ChatMessage], max_completion_tokens: int) -> float:
+    return approx_cost_usd(prompt_token_bound(messages), max_completion_tokens)
+
+
+def _count(value: object) -> bool:
+    return type(value) is int and value >= 0  # bool, float and str are not token counts
+
+
+def _amount(value: object) -> bool:
+    return type(value) in (int, float) and math.isfinite(value) and value >= 0
+
+
+def trusted_usage(result: CompletionResult, max_completion_tokens: int, prompt_bound: int) -> str | None:
+    """Return why the reported usage cannot be used for billing, or None if it can.
+
+    Only trustworthy usage may lower a reservation; anything malformed or contradictory keeps the
+    worst case.
+    """
+    usage = result.usage
+    if usage is None:
+        return "no usage reported"
+    counts = {"prompt_tokens": usage.prompt_tokens, "completion_tokens": usage.completion_tokens,
+              "total_tokens": usage.total_tokens}
+    if usage.completion_tokens_details is not None:
+        counts["reasoning_tokens"] = usage.completion_tokens_details.reasoning_tokens
+    bad = sorted(k for k, v in counts.items() if not _count(v))
+    if bad:
+        return f"malformed usage ({', '.join(bad)} not a nonnegative integer)"
+    prompt, completion = usage.prompt_tokens, usage.completion_tokens
+    if usage.total_tokens != prompt + completion:
+        return "inconsistent usage (total_tokens is not prompt_tokens + completion_tokens)"
+    if counts.get("reasoning_tokens", 0) > completion:
+        return "inconsistent usage (reasoning_tokens exceed completion_tokens)"
+    if prompt == 0:
+        return "inconsistent usage (0 prompt tokens for a non-empty prompt)"
+    if prompt > prompt_bound:
+        return "inconsistent usage (prompt_tokens above the prompt's byte bound)"
+    if completion > max_completion_tokens:
+        return "inconsistent usage (completion_tokens above the output cap)"
+    if completion == 0 and (result.text or result.refusal):
+        return "inconsistent usage (output returned with 0 completion tokens)"
+    return None
 
 
 class Ledger:
@@ -302,11 +360,33 @@ class Ledger:
         self.settings = settings
         self.log = ChainedLog(live_dir(settings) / "ledger.jsonl")
 
-    def state(self) -> BudgetState:
+    def _entries(self) -> tuple[dict[str, float], dict[str, float]]:
+        """Reservations and settlements, after checking every amount (fail closed).
+
+        A settlement must follow its own reservation, at most once, with an amount in
+        [0, reserved]. Any other ledger content blocks live mode instead of being interpreted.
+        """
         with _store_lock:
             records = self.log.read()
-        reserved = {r["reservation_id"]: float(r["amount_usd"]) for r in records if r.get("kind") == "reserve"}
-        settled = {r["reservation_id"]: float(r["amount_usd"]) for r in records if r.get("kind") == "settle"}
+        reserved: dict[str, float] = {}
+        settled: dict[str, float] = {}
+        for r in records:
+            rid, amount, kind = r.get("reservation_id"), r.get("amount_usd"), r.get("kind")
+            ok = isinstance(rid, str) and _amount(amount)
+            if ok and kind == "reserve":
+                ok = rid not in reserved
+            elif ok and kind == "settle":
+                ok = rid in reserved and rid not in settled and amount <= reserved[rid]
+            else:
+                ok = False
+            if not ok:
+                raise LiveStoreUnavailable("ledger.jsonl holds an invalid entry; live mode is blocked",
+                                           details={"file": "ledger.jsonl"})
+            (reserved if kind == "reserve" else settled)[rid] = float(amount)
+        return reserved, settled
+
+    def state(self) -> BudgetState:
+        reserved, settled = self._entries()
         spent = sum(settled.values()) + sum(v for k, v in reserved.items() if k not in settled)
         return BudgetState(budget_ceiling(self.settings), round(spent, 5), len(reserved), self.settings.live_max_calls)
 
@@ -315,6 +395,11 @@ class Ledger:
             return self._reserve(amount)
 
     def _reserve(self, amount: float) -> str:
+        if _settlement_failed.is_set():
+            raise LiveStoreUnavailable("A previous budget settlement could not be written; live calls are blocked until "
+                                       "the server restarts. The unsettled reservation counts as spent.")
+        if not _amount(amount) or amount <= 0:
+            raise AllowlistViolation("invalid reservation amount")
         st = self.state()
         if st.calls_used >= st.max_calls:
             raise BudgetExhausted("The live call limit is reached; no call was made.",
@@ -327,9 +412,19 @@ class Ledger:
         return rid
 
     def settle(self, reservation_id: str, amount: float, note: str) -> None:
-        with _store_lock:
-            self.log.append({"kind": "settle", "reservation_id": reservation_id, "amount_usd": amount,
-                             "note": note, "at": _now()})
+        """Write the settlement. On any failure the block is latched and the reservation stays spent."""
+        try:
+            with _store_lock:
+                reserved, settled = self._entries()
+                if reservation_id not in reserved or reservation_id in settled:
+                    raise LiveStoreUnavailable("the settlement does not match an open reservation")
+                if not _amount(amount) or amount > reserved[reservation_id]:
+                    raise LiveStoreUnavailable("the settlement amount is outside [0, reserved]")
+                self.log.append({"kind": "settle", "reservation_id": reservation_id, "amount_usd": amount,
+                                 "note": note, "at": _now()})
+        except BaseException:
+            _settlement_failed.set()
+            raise
 
 
 class GuardedAdapter:
@@ -348,21 +443,29 @@ class GuardedAdapter:
             raise AllowlistViolation("one model call per live run")
         check_prompt(messages, self.question, self.scope)
         # The adapter never sends more than the settings cap, so the cap is the worst case for output.
-        reserved = worst_case_cost(messages, self.ledger.settings.meta_max_completion_tokens)
+        cap = self.ledger.settings.meta_max_completion_tokens
+        bound = prompt_token_bound(messages)
+        reserved = approx_cost_usd(bound, cap)
         rid = self.ledger.reserve(reserved)
         self.calls += 1
+        self.cost_usd = reserved  # until trustworthy usage says otherwise
         try:
             result = self.inner.complete(messages, **kwargs)
         except BaseException:
-            self.cost_usd = reserved
-            self.ledger.settle(rid, reserved, "no usage reported (error); worst case kept")
+            try:
+                self.ledger.settle(rid, reserved, "no usage reported (error); worst case kept")
+            except BaseException:  # noqa: S110 - latched in settle; the reservation already counts as spent
+                pass
             raise
-        if result.usage is None:
-            self.cost_usd = reserved
-            self.ledger.settle(rid, reserved, "no usage reported; worst case kept")
+        problem = trusted_usage(result, cap, bound)
+        cost = None if problem else approx_cost_usd(result.usage.prompt_tokens, result.usage.completion_tokens)
+        if cost is None or not _amount(cost) or cost > reserved:
+            # Untrusted usage is dropped, so no token count or cost derived from it is recorded or shown.
+            result = result.model_copy(update={"usage": None})
+            self.ledger.settle(rid, reserved, f"{problem or 'cost outside the reservation'}; worst case kept")
         else:
-            self.cost_usd = approx_cost_usd(result.usage.prompt_tokens, result.usage.completion_tokens)
-            self.ledger.settle(rid, self.cost_usd, "estimated from reported usage")
+            self.cost_usd = cost
+            self.ledger.settle(rid, cost, "estimated from reported usage")
         return result
 
 
@@ -432,7 +535,8 @@ def add_review(settings: Settings, report_id: str, relationship_id: object, cont
     run = load_run(settings, report_id)
     if content_digest != run.outcome.finalized.content_digest:
         raise InvalidLiveRequest("The review does not match this run's content digest.")
-    if relationship_id not in {r.relationship_id for r in run.outcome.finalized.report().relationships}:
+    if not isinstance(relationship_id, str) or relationship_id not in {
+            r.relationship_id for r in run.outcome.finalized.report().relationships}:
         raise InvalidLiveRequest("The relationship is not part of this run.")
     if decision not in REVIEW_DECISIONS:
         raise InvalidLiveRequest("Unknown review decision.", details={"allowed": list(REVIEW_DECISIONS)})
@@ -441,7 +545,9 @@ def add_review(settings: Settings, report_id: str, relationship_id: object, cont
     if not isinstance(note, str) or len(note) > MAX_NOTE_CHARS or _CONTROL_EXCEPT_NEWLINE.search(note):
         raise InvalidLiveRequest(f"The note must be text of at most {MAX_NOTE_CHARS} characters.")
     with _store_lock:
-        return reviews_log(settings).append({
+        log = reviews_log(settings)
+        sequence = len(log.read()) + 1
+        record = log.append({
             "review_id": uuid.uuid4().hex,
             "report_id": report_id,
             "content_digest": content_digest,
@@ -453,15 +559,22 @@ def add_review(settings: Settings, report_id: str, relationship_id: object, cont
             "relationship_status": "candidate",
             "legal_confirmation": False,
         })
+    # The record's 1-based position in the review log, i.e. the server's append order. The browser
+    # keeps the highest one per relationship, whatever order responses arrive in. Derived, not stored.
+    return {**record, "sequence": sequence}
 
 
 def reviews_for(settings: Settings, report_id: str) -> list[dict[str, Any]]:
-    """Review records for one run, in append order (the last one per relationship is current)."""
+    """Review records for one run, in append order (the last one per relationship is current).
+
+    Each carries ``sequence``, its 1-based position in the whole review log.
+    """
     run = load_run(settings, report_id)
     with _store_lock:
         records = reviews_log(settings).read()
     digest = run.outcome.finalized.content_digest
-    return [r for r in records if r.get("report_id") == report_id and r.get("content_digest") == digest]
+    return [{**r, "sequence": i} for i, r in enumerate(records, 1)
+            if r.get("report_id") == report_id and r.get("content_digest") == digest]
 
 
 # --- the live investigation -------------------------------------------------------------

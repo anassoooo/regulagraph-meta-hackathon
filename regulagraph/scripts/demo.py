@@ -138,6 +138,13 @@ def preflight(host: str, port: int) -> Settings:
     return settings
 
 
+def server_options(host: str, port: int) -> dict[str, object]:
+    """Exactly one server process. The live budget lock and the ledger's read-check-append are
+    serialised per process only, so `workers` is fixed at 1: an explicit value also stops uvicorn
+    from reading WEB_CONCURRENCY. This is a guard for a local demo, not an account spending cap."""
+    return {"host": host, "port": port, "log_level": "warning", "workers": 1, "reload": False}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--host", default="127.0.0.1")
@@ -165,7 +172,7 @@ def main() -> int:
 
     mode = "LIVE MODE (paid calls enabled)" if args.live else "replay only"
     print(f"Preflight passed ({mode}). Open http://{args.host}:{args.port}  (Ctrl+C to stop)")
-    uvicorn.run("app.main:app", host=args.host, port=args.port, log_level="warning")
+    uvicorn.run("app.main:app", **server_options(args.host, args.port))
     return 0
 
 

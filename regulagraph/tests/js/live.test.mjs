@@ -43,11 +43,12 @@ const flush = async () => {
 };
 
 let boots = 0;
-async function boot({ enabled = true, storedReviews = [] } = {}) {
+async function boot({ enabled = true, storedReviews = [], deferReviewGets = false } = {}) {
   const document = new FakeDocument();
   globalThis.document = document;
   const posts = [];
   const reviewPosts = [];
+  const reviewGets = [];
   const pendingReplay = new Map();
   globalThis.fetch = (url, options = {}) => {
     if (url === "/api/scenarios") return Promise.resolve(response(200, SCENARIOS));
@@ -74,8 +75,12 @@ async function boot({ enabled = true, storedReviews = [] } = {}) {
       return promise;
     }
     if (review) {
-      return Promise.resolve(response(200, { report_id: review[1], content_digest: "d", meaning: "m",
-        reviews: storedReviews }));
+      const digest = review[1].replace(/^rep-/, "digest-");
+      const listing = (reviews) => response(200, { report_id: review[1], content_digest: digest, meaning: "m", reviews });
+      if (deferReviewGets) {
+        return new Promise((res) => reviewGets.push({ url, resolve: (reviews) => res(listing(reviews)) }));
+      }
+      return Promise.resolve(listing(storedReviews));
     }
     const m = /\/api\/scenarios\/(\w+)\/replay/.exec(url);
     if (m) {
@@ -88,7 +93,7 @@ async function boot({ enabled = true, storedReviews = [] } = {}) {
   const $ = (id) => document.getElementById(id);
   const docBoxes = () => document.querySelectorAll("[data-live-doc]");
   return {
-    $, posts, reviewPosts, pendingReplay, docBoxes,
+    $, posts, reviewPosts, reviewGets, pendingReplay, docBoxes,
     fill: ({ question = "Which circular amends which?", docs = ["d-one"], confirm = true } = {}) => {
       $("live-question").value = question;
       for (const box of docBoxes()) box.checked = docs.includes(box.getAttribute("data-live-doc"));
@@ -213,9 +218,9 @@ async function liveShown(options) {
   return app;
 }
 
-const reviewRecord = (decision, at = "2026-10-31T10:00:00Z") => ({
-  review_id: "r1", report_id: "rep-A", content_digest: "digest-A", relationship_id: "rel-A", decision, note: "",
-  reviewed_at: at, relationship_status: "candidate", legal_confirmation: false,
+const reviewRecord = (decision, at = "2026-10-31T10:00:00Z", sequence = 1, tag = "A") => ({
+  review_id: `r${sequence}`, report_id: `rep-${tag}`, content_digest: `digest-${tag}`, relationship_id: `rel-${tag}`,
+  decision, note: "", reviewed_at: at, relationship_status: "candidate", legal_confirmation: false, sequence,
 });
 
 test("live results show review controls with the not-a-legal-confirmation notice", async () => {
@@ -227,7 +232,7 @@ test("live results show review controls with the not-a-legal-confirmation notice
 });
 
 test("existing reviews are loaded and the latest one is shown", async () => {
-  const app = await liveShown({ storedReviews: [reviewRecord("rejected", "T1"), reviewRecord("accepted", "T2")] });
+  const app = await liveShown({ storedReviews: [reviewRecord("rejected", "T1", 1), reviewRecord("accepted", "T2", 2)] });
   assert.match(app.ui().inspector, /Reviewer accepted · T2\. Still an AI-generated candidate: not a legal confirmation/);
 });
 
@@ -270,4 +275,112 @@ test("replay results never show review controls", async () => {
   await flush();
   assert.match(app.ui().inspector, /Live quote R/);
   assert.equal(app.$("inspector").querySelectorAll("[data-review]").length, 0);
+});
+
+// --- remediation: review-response ordering (Sol finding 2) ------------------------------------
+
+const clickReview = (app, decision) => app.$("inspector").querySelector(`[data-review="${decision}"]`).click();
+
+test("race 1: a delayed initial reviews GET cannot overwrite a newer acceptance", async () => {
+  const app = await liveShown({ deferReviewGets: true });
+  assert.equal(app.reviewGets.length, 1, "the initial GET is still in flight");
+  clickReview(app, "accepted");
+  await flush();
+  app.reviewPosts[0].resolve(response(200, reviewRecord("accepted", "T1", 1)));
+  await flush();
+  assert.match(app.ui().inspector, /Reviewer accepted · T1/);
+  assert.equal(app.reviewGets.length, 2, "a reconciling GET follows the write");
+  app.reviewGets[0].resolve([]); // the stale initial GET arrives last, from before the write
+  await flush();
+  assert.match(app.ui().inspector, /Reviewer accepted · T1/);
+  assert.doesNotMatch(app.ui().inspector, /No review recorded/);
+  app.reviewGets[1].resolve([reviewRecord("accepted", "T1", 1)]);
+  await flush();
+  assert.match(app.ui().inspector, /Reviewer accepted · T1/);
+});
+
+test("race 2: two quick decisions are appended in click order and the later one stays shown", async () => {
+  const app = await liveShown({ deferReviewGets: true });
+  clickReview(app, "accepted");
+  clickReview(app, "rejected");
+  await flush();
+  assert.equal(app.reviewPosts.length, 1, "the second decision waits for the first to be recorded");
+  assert.equal(app.reviewPosts[0].body.decision, "accepted");
+  app.reviewPosts[0].resolve(response(200, reviewRecord("accepted", "T1", 1)));
+  await flush();
+  assert.equal(app.reviewPosts.length, 2);
+  assert.equal(app.reviewPosts[1].body.decision, "rejected");
+  app.reviewPosts[1].resolve(response(200, reviewRecord("rejected", "T2", 2)));
+  await flush();
+  assert.match(app.ui().inspector, /Reviewer rejected · T2/);
+  // Reads delivered newest first, then older ones: the display never moves back to the acceptance.
+  const [initial, afterFirst, afterSecond] = app.reviewGets;
+  afterSecond.resolve([reviewRecord("accepted", "T1", 1), reviewRecord("rejected", "T2", 2)]);
+  await flush();
+  afterFirst.resolve([reviewRecord("accepted", "T1", 1)]);
+  await flush();
+  initial.resolve([]);
+  await flush();
+  assert.match(app.ui().inspector, /Reviewer rejected · T2/);
+});
+
+test("reversed delivery of write responses keeps the higher server sequence", async () => {
+  const app = await liveShown({ deferReviewGets: true });
+  clickReview(app, "accepted");
+  await flush();
+  // e.g. another tab recorded a later rejection; its listing arrives before this write's response
+  app.reviewGets[0].resolve([reviewRecord("rejected", "T2", 2)]);
+  await flush();
+  app.reviewPosts[0].resolve(response(200, reviewRecord("accepted", "T1", 1)));
+  await flush();
+  assert.match(app.ui().inspector, /Reviewer rejected · T2/);
+});
+
+test("a review response for a superseded live run is never applied to the new one", async () => {
+  const app = await liveShown();
+  clickReview(app, "accepted");
+  clickReview(app, "rejected"); // queued behind the first
+  await flush();
+  app.fill();
+  await app.run();
+  app.posts[1].resolve(response(200, liveFor("Which circular amends which?", "B")));
+  await flush();
+  assert.match(app.ui().inspector, /Live quote B/);
+  app.reviewPosts[0].resolve(response(200, reviewRecord("accepted", "T1", 1)));
+  await flush();
+  assert.match(app.ui().inspector, /Live quote B/);
+  assert.match(app.ui().inspector, /No review recorded/);
+  assert.equal(app.reviewPosts.length, 1, "the queued decision for the old run is not sent");
+  clickReview(app, "accepted");
+  await flush();
+  assert.equal(app.reviewPosts[1].url, "/api/live/investigations/rep-B/reviews");
+  assert.equal(app.reviewPosts[1].body.content_digest, "digest-B");
+  app.reviewPosts[1].resolve(response(200, reviewRecord("accepted", "T3", 2, "A"))); // wrong run in the body
+  await flush();
+  assert.match(app.ui().inspector, /No review recorded/);
+});
+
+test("a review response arriving after switching to a scenario replay is dropped", async () => {
+  const app = await liveShown();
+  clickReview(app, "accepted");
+  await flush();
+  app.$("scenario-list").querySelector('[data-scenario="E01"]').click();
+  await flush();
+  app.reviewPosts[0].resolve(response(200, reviewRecord("accepted", "T1", 1)));
+  await flush();
+  assert.doesNotMatch(app.ui().inspector, /Reviewer accepted/);
+  assert.equal(app.$("inspector").querySelectorAll("[data-review]").length, 0);
+});
+
+test("mergeReviews keeps the highest sequence per relationship and ignores other runs", async () => {
+  const { mergeReviews } = await import("../../app/web/view.js");
+  const a1 = reviewRecord("accepted", "T1", 1);
+  const r2 = reviewRecord("rejected", "T2", 2);
+  assert.equal(mergeReviews(new Map(), [r2, a1], "rep-A", "digest-A").get("rel-A"), r2);
+  assert.equal(mergeReviews(mergeReviews(new Map(), [r2], "rep-A", "digest-A"), [a1], "rep-A", "digest-A").get("rel-A"), r2);
+  assert.equal(mergeReviews(new Map(), [reviewRecord("accepted", "T", 1, "B")], "rep-A", "digest-A").size, 0);
+  assert.equal(mergeReviews(new Map(), [{ ...a1, content_digest: "other" }], "rep-A", "digest-A").size, 0);
+  for (const sequence of [undefined, 0, -1, 1.5, "3"]) {
+    assert.equal(mergeReviews(new Map(), [{ ...a1, sequence }], "rep-A", "digest-A").size, 0);
+  }
 });

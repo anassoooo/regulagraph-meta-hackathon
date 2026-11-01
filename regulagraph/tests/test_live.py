@@ -23,7 +23,13 @@ from app.services import live as live_service
 from app.services import replay as replay_service
 from app.services.corpus import DEFAULT_RAW_DIR, load_manifest
 from app.services.evaluation import load_cases
-from app.services.meta_client import ChatMessage, CompletionResult, MetaModelAdapter, TokenUsage
+from app.services.meta_client import (
+    ChatMessage,
+    CompletionResult,
+    MetaModelAdapter,
+    TokenUsage,
+    _CompletionTokenDetails,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 REAL_COMPLETE = MetaModelAdapter.complete  # saved before the no_network fixture patches it
@@ -88,8 +94,17 @@ class FakeModel:
             self.gate.wait(10)
         if self.error is not None:
             raise self.error
-        usage = None if self.usage is None else TokenUsage(
-            prompt_tokens=self.usage[0], completion_tokens=self.usage[1], total_tokens=sum(self.usage))
+        if self.usage is None:
+            usage = None
+        elif isinstance(self.usage, dict):  # any provider claim, unvalidated (as a lax parser could produce)
+            fields = dict(self.usage)
+            if "reasoning_tokens" in fields:
+                fields["completion_tokens_details"] = _CompletionTokenDetails.model_construct(
+                    reasoning_tokens=fields.pop("reasoning_tokens"))
+            usage = TokenUsage.model_construct(**fields)
+        else:
+            usage = TokenUsage(prompt_tokens=self.usage[0], completion_tokens=self.usage[1],
+                               total_tokens=sum(self.usage))
         return CompletionResult(response_id="fake-response", model_id="muse-spark-1.3", text=self.text,
                                 finish_reason="stop", usage=usage, latency_ms=12.5)
 
@@ -102,9 +117,11 @@ def live_env(monkeypatch, tmp_path):
     for k, v in env.items():
         monkeypatch.setenv(k, v)
     get_settings.cache_clear()
+    live_service._settlement_failed.clear()  # a fresh process
     model = FakeModel()
     monkeypatch.setattr(live_service, "MetaModelAdapter", lambda settings: model.settings.append(settings) or model)
     yield model
+    live_service._settlement_failed.clear()
     get_settings.cache_clear()
 
 
@@ -715,3 +732,235 @@ def test_real_adapter_never_sends_more_than_the_live_ceiling(monkeypatch, reques
     adapter = MetaModelAdapter(live_service.live_settings(Settings()), transport=httpx.MockTransport(handler))
     REAL_COMPLETE(adapter, [ChatMessage(role="user", content="q")], max_completion_tokens=requested)
     assert payloads[0]["max_completion_tokens"] == sent
+
+
+# --- remediation: provider usage and ledger settlement (Sol finding 1) --------------------------------------
+
+GOOD_USAGE = {"prompt_tokens": 3000, "completion_tokens": 1000, "total_tokens": 4000, "reasoning_tokens": 400}
+BAD_USAGE = {
+    "negative prompt": {**GOOD_USAGE, "prompt_tokens": -3000, "total_tokens": -2000},
+    "negative completion": {**GOOD_USAGE, "completion_tokens": -1000000, "total_tokens": -997000, "reasoning_tokens": 0},
+    "negative total": {**GOOD_USAGE, "total_tokens": -4000},
+    "negative reasoning": {**GOOD_USAGE, "reasoning_tokens": -1},
+    "total too small": {**GOOD_USAGE, "total_tokens": 3999},
+    "total too large": {**GOOD_USAGE, "total_tokens": 4001},
+    "reasoning above completion": {**GOOD_USAGE, "reasoning_tokens": 1001},
+    "completion above the 4096 cap": {**GOOD_USAGE, "completion_tokens": 4097, "total_tokens": 7097},
+    "prompt above the byte bound": {**GOOD_USAGE, "prompt_tokens": 10**9, "total_tokens": 10**9 + 1000},
+    "zero prompt": {**GOOD_USAGE, "prompt_tokens": 0, "total_tokens": 1000},
+    "output with zero completion": {**GOOD_USAGE, "completion_tokens": 0, "total_tokens": 3000, "reasoning_tokens": 0},
+    "string count": {**GOOD_USAGE, "prompt_tokens": "3000"},
+    "float count": {**GOOD_USAGE, "completion_tokens": 1000.0},
+    "bool count": {**GOOD_USAGE, "prompt_tokens": True, "total_tokens": 1001},
+    "null count": {**GOOD_USAGE, "total_tokens": None},
+    "nan count": {**GOOD_USAGE, "completion_tokens": float("nan")},
+}
+
+
+@needs_corpus
+@pytest.mark.parametrize("usage", list(BAD_USAGE.values()), ids=list(BAD_USAGE))
+def test_untrusted_usage_keeps_the_worst_case_and_is_not_shown(live_env, view, usage) -> None:
+    live_env.usage = usage
+    r = post_live(make_client(), body(view))
+    assert r.status_code == 200, r.text
+    out = r.json()
+    reserve, settle = ledger_records()
+    assert settle["amount_usd"] == reserve["amount_usd"] > 0 and "worst case kept" in settle["note"]
+    assert out["budget"]["spent_usd"] == reserve["amount_usd"]
+    assert out["call"]["estimated_cost_usd"] == reserve["amount_usd"]
+    assert out["call"]["prompt_tokens"] is None and out["call"]["completion_tokens"] is None  # dropped, not shown
+    assert live_service.load_run(get_settings(), out["report_id"]).outcome.model_call.usage is None
+
+
+@needs_corpus
+def test_trusted_usage_with_reasoning_settles_at_its_estimate(live_env, view) -> None:
+    live_env.usage = GOOD_USAGE
+    out = post_live(make_client(), body(view)).json()
+    reserve, settle = ledger_records()
+    assert settle["amount_usd"] == round(3000 * 1.25e-6 + 1000 * 4.25e-6, 5) < reserve["amount_usd"]
+    assert out["call"]["reasoning_tokens"] == 400
+
+
+@needs_corpus
+def test_negative_usage_cannot_credit_the_ledger_or_pass_the_ceiling(live_env, view, monkeypatch) -> None:
+    # Sol's reproduction: negative usage settled as negative spend and let calls continue past the ceiling.
+    monkeypatch.setenv("LIVE_BUDGET_USD", "0.1")
+    monkeypatch.setenv("LIVE_MAX_CALLS", "200")
+    get_settings.cache_clear()
+    live_env.usage = BAD_USAGE["negative completion"]
+    client = make_client()
+    statuses = [post_live(client, body(view)).status_code for _ in range(8)]
+    assert statuses[-1] == 429
+    st = live_service.budget_state(get_settings())
+    assert all(r["amount_usd"] >= 0 for r in ledger_records())
+    assert 0 < st.spent_usd <= 0.1 and st.calls_used == statuses.count(200) == len(live_env.prompts)
+
+
+def _chain(path: Path, records: list[dict]) -> None:
+    log = live_service.ChainedLog(path)
+    for rec in records:
+        log.append(rec)  # a correctly linked chain: only the amount checks can refuse it
+
+
+@pytest.mark.parametrize("records", [
+    [{"kind": "reserve", "reservation_id": "a", "amount_usd": 0.03},
+     {"kind": "settle", "reservation_id": "a", "amount_usd": -5.0}],
+    [{"kind": "reserve", "reservation_id": "a", "amount_usd": -0.03}],
+    [{"kind": "reserve", "reservation_id": "a", "amount_usd": 0.03},
+     {"kind": "settle", "reservation_id": "a", "amount_usd": 0.04}],
+    [{"kind": "reserve", "reservation_id": "a", "amount_usd": 0.03},
+     {"kind": "settle", "reservation_id": "a", "amount_usd": 0.01},
+     {"kind": "settle", "reservation_id": "a", "amount_usd": 0.0}],
+    [{"kind": "settle", "reservation_id": "a", "amount_usd": 0.0}],
+    [{"kind": "reserve", "reservation_id": "a", "amount_usd": "0.03"}],
+    [{"kind": "reserve", "reservation_id": "a", "amount_usd": 0.03},
+     {"kind": "reserve", "reservation_id": "a", "amount_usd": 0.03}],
+    [{"kind": "refund", "reservation_id": "a", "amount_usd": 1.0}],
+], ids=["negative settle", "negative reserve", "settle above reserve", "double settle", "settle without reserve",
+        "string amount", "duplicate reservation", "unknown kind"])
+def test_a_linked_ledger_with_invalid_amounts_blocks_live_mode(live_env, records) -> None:
+    _chain(live_dir() / "ledger.jsonl", records)
+    with pytest.raises(live_service.LiveStoreUnavailable):
+        live_service.budget_state(get_settings())
+    status = make_client().get("/api/live/status").json()
+    assert status["enabled"] is False and "ledger.jsonl" in status["reason"]
+
+
+@pytest.mark.parametrize("amount", [-0.01, 0.05, float("nan"), float("inf")])
+def test_ledger_refuses_to_settle_outside_the_reservation_and_latches(live_env, amount) -> None:
+    ledger = live_service.Ledger(get_settings())
+    rid = ledger.reserve(0.04)
+    with pytest.raises(live_service.LiveStoreUnavailable):
+        ledger.settle(rid, amount, "bad")
+    assert [r["kind"] for r in ledger_records()] == ["reserve"]
+    assert live_service.budget_state(get_settings()).spent_usd == 0.04  # the reservation stays spent
+    with pytest.raises(live_service.LiveStoreUnavailable):
+        ledger.reserve(0.01)
+
+
+@needs_corpus
+@pytest.mark.parametrize("model_error", [False, True], ids=["after a response", "after a provider error"])
+def test_failed_settlement_write_keeps_the_reservation_and_blocks_further_calls(live_env, view, monkeypatch,
+                                                                               model_error) -> None:
+    if model_error:
+        live_env.error = ModelProviderError("upstream failed", status_code=500)
+    real_append = live_service.ChainedLog.append
+
+    def append(self, record):
+        if record.get("kind") == "settle":
+            raise live_service.LiveStoreUnavailable("cannot write ledger.jsonl")
+        return real_append(self, record)
+
+    monkeypatch.setattr(live_service.ChainedLog, "append", append)
+    client = make_client()
+    first = post_live(client, body(view))
+    # After a response the settlement failure fails the request; after a provider error, that error is the outcome.
+    assert first.status_code == (200 if model_error else 503)
+    assert [r["kind"] for r in ledger_records()] == ["reserve"]
+    reserved = ledger_records()[0]["amount_usd"]
+    assert live_service.budget_state(get_settings()).spent_usd == reserved
+    monkeypatch.setattr(live_service.ChainedLog, "append", real_append)  # storage recovered, same process
+    second = post_live(client, body(view))
+    assert second.status_code == 503 and "restart" in second.json()["error"]["message"]
+    assert len(live_env.prompts) == 1
+    live_service._settlement_failed.clear()  # a restart: the unsettled reservation still counts as spent
+    assert live_service.budget_state(get_settings()).spent_usd == reserved
+
+
+@needs_corpus
+def test_concurrent_requests_with_untrusted_usage_make_one_call_at_the_worst_case(live_env, view) -> None:
+    live_env.gate = threading.Event()
+    live_env.usage = BAD_USAGE["negative prompt"]
+    settings = get_settings()
+    results: list[object] = []
+
+    def run():
+        try:
+            results.append(live_service.run_live(settings, view, E01_QUESTION, doc_ids(view, LIVE_KEYS[:2]), True))
+        except live_service.LiveBusy as exc:
+            results.append(exc)
+
+    threads = [threading.Thread(target=run) for _ in range(4)]
+    threads[0].start()
+    for _ in range(200):
+        if live_env.prompts:
+            break
+        threading.Event().wait(0.01)
+    for t in threads[1:]:
+        t.start()
+    for t in threads[1:]:
+        t.join(5)
+    live_env.gate.set()
+    threads[0].join(10)
+    assert len(live_env.prompts) == 1
+    assert sum(isinstance(r, live_service.LiveBusy) for r in results) == 3
+    reserve, settle = ledger_records()
+    assert settle["amount_usd"] == reserve["amount_usd"] > 0
+
+
+@pytest.mark.parametrize("usage, trusted", [
+    ({"prompt_tokens": 5, "completion_tokens": 2, "total_tokens": 7}, True),
+    ({"prompt_tokens": 5, "completion_tokens": 2, "total_tokens": 7,
+      "completion_tokens_details": {"reasoning_tokens": 1}}, True),
+    ({"prompt_tokens": "5", "completion_tokens": 2, "total_tokens": 7}, False),
+    ({"prompt_tokens": 5.0, "completion_tokens": 2, "total_tokens": 7}, False),
+    ({"prompt_tokens": True, "completion_tokens": 2, "total_tokens": 3}, False),
+    ({"prompt_tokens": 5, "completion_tokens": 2, "total_tokens": 7,
+      "completion_tokens_details": {"reasoning_tokens": "1"}}, False),
+    ("lots", False),
+    ([5, 2, 7], False),
+])
+def test_real_adapter_parses_provider_usage_strictly(monkeypatch, usage, trusted) -> None:
+    monkeypatch.setenv("META_INFERENCE_ENABLED", "true")
+    monkeypatch.setenv("MODEL_API_KEY", TEST_KEY)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"id": "x", "model": "muse-spark-1.3", "usage": usage, "choices": [
+            {"message": {"role": "assistant", "content": "{}"}, "finish_reason": "stop"}]})
+
+    adapter = MetaModelAdapter(live_service.live_settings(Settings()), transport=httpx.MockTransport(handler))
+    result = REAL_COMPLETE(adapter, [ChatMessage(role="user", content="q")])
+    assert result.text == "{}"  # the answer survives; only the usage is withheld
+    assert (result.usage is not None) is trusted
+
+
+# --- remediation: malformed review IDs (Sol finding 3) and server append order ------------------------------
+
+@needs_corpus
+@pytest.mark.parametrize("relationship_id", [["rel"], {"id": "rel"}, 5, None, True, 1.5])
+def test_non_string_relationship_ids_are_a_422_and_append_nothing(live_run, relationship_id) -> None:
+    r = post_review(make_client(), live_run, relationship_id=relationship_id)
+    assert r.status_code == 422 and "not part of this run" in r.json()["error"]["message"]
+    assert not (live_dir() / "reviews.jsonl").exists()
+
+
+@needs_corpus
+def test_reviews_carry_the_server_append_order(live_run) -> None:
+    client = make_client()
+    rel = live_run["relationships"][0]["relationship_id"]
+    posted = [post_review(client, live_run, decision=d).json() for d in ("accepted", "rejected", "accepted")]
+    assert [p["sequence"] for p in posted] == [1, 2, 3]
+    listed = client.get(reviews_url(live_run["report_id"])).json()["reviews"]
+    assert [(x["sequence"], x["decision"], x["relationship_id"]) for x in listed] == [
+        (1, "accepted", rel), (2, "rejected", rel), (3, "accepted", rel)]
+    stored = [json.loads(line) for line in (live_dir() / "reviews.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert all("sequence" not in s for s in stored)  # derived from the log position, never stored
+
+
+# --- remediation: single server process (Sol finding 5) ---------------------------------------------------
+
+@pytest.mark.parametrize("live", [False, True])
+def test_launcher_runs_one_worker_even_with_web_concurrency(monkeypatch, live) -> None:
+    import uvicorn
+
+    demo = _demo()
+    monkeypatch.setenv("WEB_CONCURRENCY", "2")
+    assert uvicorn.Config("app.main:app").workers == 2  # without an explicit value uvicorn would start two
+    captured: list[dict] = []
+    monkeypatch.setattr(demo, "preflight", lambda host, port: None)
+    monkeypatch.setattr(demo, "enable_live", lambda host, budget: None)
+    monkeypatch.setattr(uvicorn, "run", lambda app, **kwargs: captured.append(kwargs))
+    monkeypatch.setattr("sys.argv", ["demo.py", *(["--live", "--confirm-paid-calls"] if live else [])])
+    assert demo.main() == 0
+    assert captured[0]["workers"] == 1 and captured[0]["reload"] is False
+    assert uvicorn.Config("app.main:app", **captured[0]).workers == 1
