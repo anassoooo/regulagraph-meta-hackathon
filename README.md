@@ -121,15 +121,15 @@ Replay, tests and the snapshot need no key. To run new questions against Muse:
 
 ## What was built during the hackathon
 
-The hackathon page lists the kickoff on 2026-10-26 and submissions due 2026-11-04, 9:00 PM ET. The build window we were given is **2026-10-27 to 2026-11-04**.
+The Cerebral Valley participant guide lists the official kickoff as **2026-10-26, 12:00 PM ET** (16:00 UTC). Submissions are due 2026-11-04, 9:00 PM ET. Every commit in this repository postdates the kickoff, as does the repository itself (created 2026-10-26 21:43 UTC).
 
-Times below are git author dates (set by the committer's clock), corroborated where possible by GitHub pull-request timestamps. Eligibility is for the organisers to decide; this section only states the facts.
+Times are git author dates, set by the committer's clock and corroborated by GitHub's repository and pull-request timestamps. Eligibility is for the organisers to determine; this section only states the facts.
 
-| When (UTC) | Same moment in US Eastern (EDT) | Commits | Content |
-|---|---|---|---|
-| 2026-10-26 21:43–23:47 | 2026-10-26 17:43–19:47 | `c6b9cc5`, `76648f8`, `f9e0ccc`, `8ffe7b3`, `cb20c97`, `c3e2901` (PRs #1, #2) | **Scaffolding only:** a one-line README, empty package layout (14 lines, two commits by the GitHub Copilot coding agent) and `.gitkeep` directories. No functionality. |
-| 2026-10-27 00:34–01:07 | **2026-10-26 20:34–21:07** | `2b6bd13`, `b5ac759`, `ff4d963` (PR #3, opened 2026-10-27 00:35 UTC) | Sprint 1 foundation: data schemas, PDF text extraction, the Meta Model API client and integrity checks. **Ambiguous timing:** this is 2026-10-27 in UTC and in Central European time (the author's local time, 01:34–02:07), but 2026-10-26 in US Eastern time. |
-| 2026-10-30 to 2026-11-01 | same days | all later commits (PRs #3–#9) | Everything else: the real BCT corpus and provision spans, retrieval, the Muse investigation and validators, the evaluation set, all live Muse calls (2026-10-30), the web demo, live mode with human review, the UI work, the static snapshot and this remediation. |
+| When (US Eastern, EDT) | Commits | Content |
+|---|---|---|
+| 2026-10-26 17:43–19:47 (5 h 43 min to 7 h 47 min after kickoff) | `c6b9cc5`, `76648f8`, `f9e0ccc`, `8ffe7b3`, `cb20c97`, `c3e2901` (PRs #1, #2) | **Scaffolding only:** a one-line README, empty package layout (14 lines, two commits by the GitHub Copilot coding agent) and `.gitkeep` directories. No functionality. |
+| 2026-10-26 20:34–21:07 | `2b6bd13`, `b5ac759`, `ff4d963` (PR #3, opened 20:35 ET) | Sprint 1 foundation: data schemas, PDF text extraction, the Meta Model API client and integrity checks. The first functional code. |
+| 2026-10-30 to 2026-11-01 | all later commits (PRs #3–#9) | Everything else: the real BCT corpus and provision spans, retrieval, the Muse investigation and validators, the evaluation set, all live Muse calls (2026-10-30), the web demo, live mode with human review, the UI work, the static snapshot and the compliance remediation. |
 
 ## Evaluation and its limits
 
