@@ -1,8 +1,8 @@
 # RegulaGraph backend
 
-RegulaGraph is an AI agent that investigates the impact of public Central Bank of Tunisia (BCT) regulations. It traces how changes affect related provisions and produces impact reports in which every claim cites a source passage.
+RegulaGraph checks what Meta Muse proposes about relationships between public Central Bank of Tunisia (BCT) circulars against the official text. For one question at a time, it retrieves a few provisions, asks Muse for relationships (repeals, replaces, amends, implements, references, conflicts with), and publishes a proposal only if every quotation it relies on is found verbatim in the cited provision. Every published relationship is an unconfirmed candidate. It is not an autonomous agent (one model call per question) and it does not trace impact across the whole corpus.
 
-**Status: Sprint 3.5 (local demo: replay by default, opt-in live mode with review).** A web demo shows recorded Muse investigations, with relationships drawn as a graph and exact source evidence. See [Web demo](#web-demo-sprint-3-replay-only). An opt-in local live mode runs new questions over the documents you approve, and records reviewer decisions. See [Live mode](#live-mode-with-review-sprint-35-local-only-paid-calls). The pipeline from Sprint 2 underneath:
+**Status: Sprint 5 (local demo: replay by default, opt-in live mode with review; a static, replay-only snapshot can be exported for public hosting, see [Static snapshot](#static-snapshot-sprint-5-replay-only-hosting)).** A web demo shows recorded Muse investigations, with relationships drawn as a graph and exact source evidence. See [Web demo](#web-demo-sprint-3-replay-only). An opt-in local live mode runs new questions over the documents you approve, and records reviewer decisions. See [Live mode](#live-mode-with-review-sprint-35-local-only-paid-calls). The pipeline from Sprint 2 underneath:
 
 1. real BCT circulars, hash-verified;
 2. provision spans with exact offsets;
@@ -32,11 +32,12 @@ app/
   services/evaluation.py       evaluation cases, scoring, structural probes
   services/replay.py           deterministic replay of recorded Muse output through the real pipeline
   api/investigations.py        replay-only demo API (/api/scenarios, /api/scenarios/{id}/replay, /api/evaluation)
+  api/live.py                  local live mode (Sprint 3.5): live investigations and review records
   web/                         static client: index.html, app.js (DOM), view.js (pure logic), style.css
 data/manifest.json             corpus: URLs, dates, SHA-256, extraction notes (PDFs not committed)
 eval/cases.json                13 manually written cases (positive and negative)
 eval/results/                  recorded evaluation runs
-scripts/                       fetch_corpus, demo, smoke_test, investigate, run_eval
+scripts/                       fetch_corpus, demo, smoke_test, investigate, run_eval, build_snapshot
 tests/js/                      node --test unit tests for the client view logic, journey helper
 docs/                          EXTRACTION_QUALITY.md, SPRINT2_REQUIREMENTS.md, REVIEW_HANDOFF_SPRINT2/3.md
 ```
@@ -91,7 +92,7 @@ It also starts the server with `META_INFERENCE_ENABLED=false`.
    - the **verified source text**: the exact quotation at page 33, characters 1158–1428, with a link to the official BCT PDF at that page;
    - the model's **interpretation**, labelled *not verified*.
 4. Optionally run E12 (implements 47 → 8), E05 ("sans préjudice", a reference) and E13 ("ne sont pas applicables", a reference only).
-5. Open **Evaluation**: scorer v2 results, with **E10 shown as truncated (no answer)**, cases not run live marked as such, and the 15 semantic errors that structural checks cannot detect.
+5. Open **Evaluation**: scorer v2 results, with **E10 shown as truncated (no answer)**, and cases not run live marked as such. The structural probe table (Sprint 5) shows, per type of hand-authored proposal, what the validators rejected and why, and the 15 semantic errors they cannot detect. These probes are labelled as hand-authored; they are not Muse output. `/api/evaluation` returns these counts as `structural.by_probe`, read from the recorded structural run.
 
 **Replay provenance.** A replay is not a stored screenshot of a result. `app/services/replay.py` takes the raw Muse output recorded during an authorised live run (`eval/results/live_*.json`, listed in `current_scoring_summary.json`). It feeds that output, via `ReplayAdapter`, back through the real pipeline (`investigate` → `finalize_report`), with the same prompt provisions and the recorded timestamp. Every quotation is re-located in the hash-verified PDF text on each replay, and every scenario must reproduce its recorded run's content digest exactly. The evaluation returned with a replay is recomputed by the current scorer from that replay; stored labels are used only as a cross-check and never shown on their own. If the PDFs, the recordings, the provision IDs or any recording metadata no longer match, the API returns 503 and shows nothing.
 
@@ -110,6 +111,32 @@ It also starts the server with `META_INFERENCE_ENABLED=false`.
 - **Headers:** a strict CSP (`default-src 'none'; script-src 'self'; style-src 'self'; …`) with no inline code and no CDN, plus `nosniff`, `no-referrer`, frame denial and `no-store`.
 - **Redaction:** responses are scrubbed of credentials.
 - **No API docs:** the FastAPI docs and OpenAPI routes are disabled.
+
+## Static snapshot (Sprint 5, replay-only hosting)
+
+```bash
+python scripts/build_snapshot.py                 # build/snapshot/ (git-ignored), for inspection
+python scripts/build_snapshot.py --out site      # site/: the directory ../render.yaml publishes
+```
+
+A public deployment must not hold the BCT PDFs: the site terms forbid copying the site's content to another site. So the public demo is a set of static files built on a machine that has the hash-verified PDFs:
+
+1. **Preflight:** the same checks as `demo.py`.
+2. **Export:** the real app, in-process, with inference and live mode off, the key cleared and network access blocked, answers the scenario list, each replay and the evaluation. Each response body is written byte for byte as a JSON file. `tests/test_snapshot.py` checks that these bytes equal the pinned golden responses.
+3. **Client:** the web client is copied with a `<meta name="regulagraph-snapshot">` tag. In that mode it reads the JSON files with GET, never contacts `/api/live`, and shows a **STATIC SNAPSHOT** banner with the build commit and date.
+4. **Output checks:** the build refuses if the output contains
+   - a PDF or an unexpected file;
+   - a credential from `.env`;
+   - a string longer than 700 characters;
+   - the full text of any provision of 200 characters or more.
+
+**What changes compared with local replay:** quotations are verified when the snapshot is built, not on each visit, and the banner says so. There is no live mode and no review.
+
+**Hosting:** `../render.yaml` describes a Render static site.
+- It serves `regulagraph/site/` with the same CSP and security headers as `app/main.py`. `tests/test_snapshot_hosting.py` keeps them identical.
+- It has no server, no environment variables and no key.
+- Automatic deploys are off.
+- Publishing means committing a built `site/` and deploying manually. That needs PM approval.
 
 ## Live mode with review (Sprint 3.5, local only, paid calls)
 
