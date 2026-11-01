@@ -139,6 +139,7 @@ main { padding: 1rem; }
 
 .evidence { margin: .5rem 0; border-left: 4px solid var(--ok); background: #fafcfb; padding: .5rem .75rem; border-radius: 0 8px 8px 0; }
 .evidence.unverified { border-left-color: var(--err); }
+.extraction-note { margin: .3rem 0 0; font-size: .75rem; color: var(--muted); font-style: italic; }
 .quote { margin: .4rem 0; white-space: pre-wrap; font-family: Georgia, "Times New Roman", serif; font-size: .95rem; }
 .evidence figcaption { font-size: .78rem; color: var(--muted); }
 .interpretation { background: var(--warn-bg); border-radius: 8px; padding: .5rem .75rem; }

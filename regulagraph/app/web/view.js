@@ -3,6 +3,9 @@
 // hardcodes evidence, pages or offsets.
 
 export const OFFICIAL_PDF_PREFIX = "https://www.bct.gov.tn/";
+// Quotations are located in the PDF's extracted text layer, which can differ visually from the printed page
+// (spacing, line breaks, words split by a space). Shown with every quotation; the quotation itself is untouched.
+export const EXTRACTION_NOTE = "Shown exactly as extracted from the PDF text layer: spacing, line breaks and split words can differ from the printed page. The official PDF is the reference.";
 
 export const STATE_MESSAGES = {
   ok: null,

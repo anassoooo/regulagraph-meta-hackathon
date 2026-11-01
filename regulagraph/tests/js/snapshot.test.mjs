@@ -139,3 +139,11 @@ test("snapshot controller: evaluation view renders the hand-authored probe table
   assert.match(text, /Relationship the case forbids, backed by a real quotation.*2 of 2 published as candidates.*passes every structural check/);
   assert.match($("mode-banner").textContent, /^STATIC SNAPSHOT/, "the banner stays on the snapshot notice in the evaluation view");
 });
+
+test("every quotation carries the extraction note; the quotation text itself is unchanged", async () => {
+  const { $ } = await bootSnapshot();
+  const notes = $("inspector").querySelectorAll(".extraction-note");
+  assert.equal(notes.length, 1, "one note per quotation");
+  assert.match(notes[0].textContent, /exactly as extracted from the PDF text layer.*can differ from the printed page/);
+  assert.equal($("inspector").querySelector("blockquote").textContent, "Snapshot quote");
+});

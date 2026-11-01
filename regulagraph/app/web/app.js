@@ -1,6 +1,7 @@
 // DOM controller. All untrusted text (source quotations, model output, labels) is
 // inserted with textContent or SVG text nodes, never as HTML.
 import {
+  EXTRACTION_NOTE,
   NODE_HALF_HEIGHT,
   NODE_HALF_WIDTH,
   REVIEW_ACTIONS,
@@ -305,7 +306,7 @@ function showInspector(model) {
     if (ev.pdfUrl) {
       caption.append(" · ", el("a", { text: "official BCT PDF", attrs: { href: ev.pdfUrl, target: "_blank", rel: "noopener noreferrer" } }));
     }
-    block.append(caption);
+    block.append(caption, el("p", { className: "extraction-note", text: EXTRACTION_NOTE }));
     box.append(block);
   }
   box.append(el("p", { className: "hint", text: model.verifiedMeaning }), el("p", { className: "hint", text: model.lexicalNote }));
