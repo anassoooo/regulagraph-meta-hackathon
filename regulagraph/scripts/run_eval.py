@@ -46,6 +46,10 @@ SYSTEMIC_FAILURES = {"disabled", "invalid_request", "provider_error", "malformed
 
 def _write(kind: str, payload: dict) -> Path:
     payload = redact_obj(payload, configured_secrets(Settings()))  # never write a credential to disk
+    if kind == "live":  # never commit BCT provision text: recordings keep IDs and segments only
+        from minimize_recordings import minimize
+
+        minimize(payload)
     RESULTS.mkdir(parents=True, exist_ok=True)
     out = RESULTS / f"{kind}_{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}.json"
     out.write_text(json.dumps(payload, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
@@ -158,16 +162,35 @@ def run_live(settings: Settings, confirmed: bool, only: list[str], reasoning_eff
     return 0
 
 
+def rehydrate_report(report: dict, view) -> dict:  # noqa: ANN001
+    """The stored report with each provision's text rebuilt from the hash-verified corpus by provision ID.
+
+    Recordings do not store provision text (scripts/minimize_recordings.py). Provision IDs are derived from
+    the document and the segments, so the corpus provision with the same ID has the same text. A provision
+    that is not in the corpus, or a stored text that differs from it, is an error: nothing is guessed.
+    """
+    corpus = {p.provision_id: p for ps in view.provisions.values() for p in ps}
+    provisions = []
+    for stored in report["provisions"]:
+        source = corpus.get(stored["provision_id"])
+        if source is None:
+            raise ValueError(f"recorded provision {stored['provision_id']} is not in the corpus")
+        if "text" in stored and stored["text"] != source.text:
+            raise ValueError(f"recorded text of {stored['provision_id']} differs from the corpus")
+        provisions.append({**stored, "text": source.text})
+    return {**report, "provisions": provisions}
+
+
 class _StoredOutcome:
     """The parts of a recorded live outcome that scoring reads (no model call)."""
 
-    def __init__(self, record: dict) -> None:
+    def __init__(self, record: dict, view) -> None:  # noqa: ANN001
         from types import SimpleNamespace
 
         from app.models.schemas import InvestigationReport
         from app.services.investigator import ModelCallRecord, Rejection
 
-        report = InvestigationReport.model_validate(record["report"])
+        report = InvestigationReport.model_validate(rehydrate_report(record["report"], view))
         self.finalized = SimpleNamespace(report=lambda: report)
         self.model_call = ModelCallRecord.model_validate(record["model_call"])
         self.rejected = [Rejection.model_validate(r) for r in record["rejected"]]
@@ -195,7 +218,7 @@ def run_rescore(settings: Settings, paths: list[Path]) -> int:
             if not record.get("api_called", True):
                 continue
             case_id = record.get("case_id") or record["score"]["case_id"]
-            current = score_case(cases[case_id], _StoredOutcome(record), view).model_dump()
+            current = score_case(cases[case_id], _StoredOutcome(record, view), view).model_dump()
             record["rescored"] = current
             usage = record["model_call"].get("usage") or {}
             rows.append({
