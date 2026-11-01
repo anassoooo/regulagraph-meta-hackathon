@@ -30,6 +30,17 @@ class Settings(BaseSettings):
     # Upper bound on prompt size sent to the model (characters of provision text).
     meta_max_prompt_chars: int = Field(default=24_000, gt=0, le=400_000, alias="META_MAX_PROMPT_CHARS")
 
+    # Local live mode (Sprint 3.5). Off by default; scripts/demo.py --live --confirm-paid-calls turns it on.
+    # Paid calls additionally need META_INFERENCE_ENABLED and a key. The budget is cumulative across restarts
+    # (append-only ledger in live_data_dir) and can never be configured above the $5 authorisation.
+    live_mode_enabled: bool = Field(default=False, alias="LIVE_MODE_ENABLED")
+    live_budget_usd: float = Field(default=4.50, gt=0, le=5.0, alias="LIVE_BUDGET_USD")
+    live_max_calls: int = Field(default=40, gt=0, le=200, alias="LIVE_MAX_CALLS")
+    live_data_dir: str | None = Field(default=None, alias="LIVE_DATA_DIR")  # default: <project>/var/live
+    # Output-token ceiling for live calls only (PM-approved 4096; never higher). Replay and the CLI keep
+    # META_MAX_COMPLETION_TOKENS; the live budget reservation uses this value as the worst case.
+    live_max_completion_tokens: int = Field(default=4096, gt=0, le=4096, alias="LIVE_MAX_COMPLETION_TOKENS")
+
     # Ingestion limits, enforced before parsing (bytes) and before text extraction (pages).
     max_pdf_bytes: int = Field(default=20_000_000, gt=0, alias="MAX_PDF_BYTES")
     max_pdf_pages: int = Field(default=200, gt=0, alias="MAX_PDF_PAGES")

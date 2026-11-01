@@ -26,7 +26,7 @@ Billing safeguard: no request is sent unless ``META_INFERENCE_ENABLED=true``.
 import logging
 import time
 from collections.abc import Sequence
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 import httpx
 from pydantic import BaseModel, Field, ValidationError
@@ -104,7 +104,22 @@ class _WireResponse(BaseModel):
     id: str
     model: str
     choices: list[_WireChoice] = Field(min_length=1)
-    usage: TokenUsage | None = None
+    usage: Any = None  # parsed strictly by _wire_usage
+
+
+def _wire_usage(raw: object) -> TokenUsage | None:
+    """Provider usage, accepted only as JSON integers (no "12", 12.0 or true coerced into counts).
+
+    Malformed usage becomes None ("no trustworthy usage"); the answer itself is still returned.
+    Range and consistency checks belong to the caller that bills from it (live.trusted_usage).
+    """
+    if raw is None:
+        return None
+    try:
+        return TokenUsage.model_validate(raw, strict=True)
+    except ValidationError:
+        logger.warning("meta chat completion: malformed usage ignored")
+        return None
 
 
 class MetaModelAdapter:
@@ -187,7 +202,7 @@ class MetaModelAdapter:
             text=choice.message.content,
             refusal=choice.message.refusal,
             finish_reason=choice.finish_reason,
-            usage=wire.usage,
+            usage=_wire_usage(wire.usage),
             latency_ms=latency_ms,
             http_status=response.status_code,
             rate_limit_remaining={h: response.headers[h] for h in _RATE_LIMIT_HEADERS if h in response.headers},

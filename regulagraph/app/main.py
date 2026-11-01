@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
 
-from app.api import health, investigations
+from app.api import health, investigations, live
 from app.core.config import get_settings
 from app.core.errors import register_error_handlers
 from app.core.redaction import install_log_redaction
@@ -33,6 +33,7 @@ def create_app() -> FastAPI:
     register_error_handlers(app)
     app.include_router(health.router)
     app.include_router(investigations.router)
+    app.include_router(live.router)
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next) -> Response:  # type: ignore[no-untyped-def]

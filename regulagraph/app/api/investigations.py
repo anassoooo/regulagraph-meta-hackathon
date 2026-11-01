@@ -23,6 +23,7 @@ from app.core.config import get_settings
 from app.core.redaction import configured_secrets, redact_obj
 from app.services import replay as replay_service
 from app.services.evaluation import load_cases
+from app.services.investigator import InvestigationOutcome
 
 router = APIRouter(prefix="/api")
 
@@ -162,6 +163,27 @@ def replay_scenario(scenario_id: str) -> ReplayOut:
 
 def to_replay_out(result: replay_service.ReplayResult) -> ReplayOut:
     outcome = result.outcome
+    mc = outcome.model_call
+    usage = mc.usage
+    rec = result.recording
+    return ReplayOut(
+        scenario=_scenario_out(result.scenario),
+        recording=RecordingOut(
+            file=rec.file, recorded_at=rec.recorded_at, model_id=mc.model_id, response_id=mc.response_id,
+            finish_reason=mc.finish_reason,
+            prompt_tokens=usage.prompt_tokens if usage else None,
+            completion_tokens=usage.completion_tokens if usage else None,
+            reasoning_tokens=usage.reasoning_tokens if usage else None,
+            latency_ms=mc.latency_ms,
+        ),
+        **report_parts(outcome),
+        # Bound to this verified replay: replay() recomputed it and rejected any stored label that disagrees.
+        evaluation=ReplayEvaluationOut(**result.evaluation),
+    )
+
+
+def report_parts(outcome: InvestigationOutcome) -> dict[str, Any]:
+    """The evidence-first view of a finalized investigation, shared by replay and live responses."""
     report = outcome.finalized.report()
     view = replay_service.corpus_view(get_settings())
     sources = {d.document.document_id: d.document for d in view.docs.values()}
@@ -200,18 +222,7 @@ def to_replay_out(result: replay_service.ReplayResult) -> ReplayOut:
 
     mc = outcome.model_call
     state: State = mc.outcome if mc.outcome != "ok" else ("ok" if relationships else "empty")
-    usage = mc.usage
-    rec = result.recording
-    return ReplayOut(
-        scenario=_scenario_out(result.scenario),
-        recording=RecordingOut(
-            file=rec.file, recorded_at=rec.recorded_at, model_id=mc.model_id, response_id=mc.response_id,
-            finish_reason=mc.finish_reason,
-            prompt_tokens=usage.prompt_tokens if usage else None,
-            completion_tokens=usage.completion_tokens if usage else None,
-            reasoning_tokens=usage.reasoning_tokens if usage else None,
-            latency_ms=mc.latency_ms,
-        ),
+    return dict(
         state=state,
         documents=[DocumentOut(
             document_id=d, reference=sources[d].reference, title=sources[d].title,
@@ -226,8 +237,6 @@ def to_replay_out(result: replay_service.ReplayResult) -> ReplayOut:
         rejected=[{"reason": x.reason, "detail": x.detail} for x in outcome.rejected],
         report_id=report.report_id,
         content_digest=outcome.finalized.content_digest,
-        # Bound to this verified replay: replay() recomputed it and rejected any stored label that disagrees.
-        evaluation=ReplayEvaluationOut(**result.evaluation),
     )
 
 

@@ -245,3 +245,50 @@ export function evaluationRows(evaluation) {
         : (c.errors || []).join(", "),
   }));
 }
+
+// --- live review (Sprint 3.5) ------------------------------------------------------------
+
+export const REVIEW_ACTIONS = [
+  ["accepted", "Accept (reviewer)"],
+  ["rejected", "Reject"],
+  ["needs_more_evidence", "Needs more evidence"],
+];
+
+export const REVIEW_LABELS = {
+  accepted: "Reviewer accepted",
+  rejected: "Reviewer rejected",
+  needs_more_evidence: "Reviewer: needs more evidence",
+};
+
+// Merge review records into `known` (relationship_id -> record), keeping per relationship the record
+// with the highest server `sequence` (its position in the server's review log). The order
+// in which responses arrive therefore never matters: a stale read or a late response cannot replace a
+// newer decision. Records for another run, or without a valid sequence, are ignored.
+export function mergeReviews(known, records, reportId, contentDigest) {
+  const merged = new Map(known || []);
+  for (const r of records || []) {
+    if (!r || r.report_id !== reportId || r.content_digest !== contentDigest) continue;
+    if (!Number.isSafeInteger(r.sequence) || r.sequence < 1 || typeof r.relationship_id !== "string") continue;
+    const have = merged.get(r.relationship_id);
+    if (!have || r.sequence > have.sequence) merged.set(r.relationship_id, r);
+  }
+  return merged;
+}
+
+export function reviewStatusText(record) {
+  if (!record) return "No review recorded.";
+  const label = REVIEW_LABELS[record.decision] || "Unknown decision";
+  return `${label} · ${record.reviewed_at}. Still an AI-generated candidate: not a legal confirmation.`;
+}
+
+export function liveCallText(live) {
+  const c = live.call || {};
+  const cost = typeof c.estimated_cost_usd === "number" ? `~${c.estimated_cost_usd.toFixed(4)} USD (estimated)` : "cost unknown";
+  const docs = (live.approved_document_ids || []).length;
+  return ` ${live.created_at} · ${c.model_id} · ${c.prompt_tokens ?? "?"} in / ${c.completion_tokens ?? "?"} out tokens (${c.reasoning_tokens ?? "?"} reasoning) · ${cost} · ${docs} approved source document(s)`;
+}
+
+export function budgetText(budget) {
+  if (!budget) return "";
+  return `Budget: ${budget.spent_usd.toFixed(4)} of ${budget.ceiling_usd.toFixed(2)} USD used (estimated) · ${budget.calls_used} of ${budget.max_calls} calls`;
+}
