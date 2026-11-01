@@ -194,9 +194,10 @@ function renderGraph(replay) {
   root.replaceChildren();
   // The viewBox is the drawing's own bounding box, so the graph fills the panel. It is never
   // enlarged past 1.3x, so a one-edge graph does not become oversized on wide screens.
+  // (Set through CSSOM: the page's CSP, style-src 'self', blocks inline style attributes.)
   const b = graphBounds(graph);
   root.setAttribute("viewBox", `${b.x} ${b.y} ${b.width} ${b.height}`);
-  root.setAttribute("style", `max-width: ${Math.round(b.width * 1.3)}px`);
+  root.style.maxWidth = `${Math.round(b.width * 1.3)}px`;
   const defs = svg("defs");
   const marker = svg("marker", { id: "arrow", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 8, markerHeight: 8, orient: "auto-start-reverse" });
   marker.append(svg("path", { d: "M 0 0 L 10 5 L 0 10 z", class: "arrowhead" }));

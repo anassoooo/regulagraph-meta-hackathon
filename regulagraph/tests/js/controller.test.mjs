@@ -218,7 +218,8 @@ test("first screen: the graph is sized to its drawing", async () => {
   const svg = document.getElementById("graph");
   const [x, y, w, h] = svg.getAttribute("viewBox").split(" ").map(Number);
   assert.ok(w > 0 && h > 0 && Number.isFinite(x) && Number.isFinite(y));
-  assert.equal(svg.getAttribute("style"), `max-width: ${Math.round(w * 1.3)}px`);
+  assert.equal(svg.style.maxWidth, `${Math.round(w * 1.3)}px`);
+  assert.equal(svg.getAttribute("style"), null, "no inline style attribute (blocked by the CSP)");
   assert.deepEqual(app.ui().edges, ["rel_E01"]);
   assert.match(svg.textContent, /repeals · candidate/);
 });

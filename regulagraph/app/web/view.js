@@ -88,7 +88,7 @@ export function provisionLabel(prov, docs) {
 // Graph: one node per involved provision, plus one node per whole-document target.
 // Columns follow document order in the response (the source document first);
 // rows follow page order. Parallel edges (same endpoints) get distinct curve offsets.
-export function buildGraph(replay, { width = 860, columnGap = 440, top = 130, rowGap = 110 } = {}) {
+export function buildGraph(replay, { width = 860, columnGap = 400, top = 130, rowGap = 110 } = {}) {
   const docs = index(replay.documents, "document_id");
   const provs = index(replay.provisions, "provision_id");
   const docOrder = (replay.documents || []).map((d) => d.document_id);
@@ -165,7 +165,7 @@ export function buildGraph(replay, { width = 860, columnGap = 440, top = 130, ro
 
 export const NODE_HALF_WIDTH = 115;
 export const NODE_HALF_HEIGHT = 28;
-export const EDGE_LABEL_FONT = 14; // px in graph units; keep in sync with .edge-label in style.css
+export const EDGE_LABEL_FONT = 15; // px in graph units; keep in sync with .edge-label in style.css
 
 // Quadratic curve between the borders of two node boxes (so the arrowhead is not hidden
 // under the target box); parallel edges bend progressively further. A quadratic curve's apex
@@ -184,14 +184,20 @@ export function edgePath(from, to, parallelIndex = 0) {
     return { d: `M ${x0} ${from.y} Q ${cx} ${cy} ${x1} ${to.y}`, labelX: cx - 10, labelY: cy, textAnchor: "start",
       apexX: (x0 + 2 * cx + x1) / 4, apexY: (from.y + 2 * cy + to.y) / 4 };
   }
+  // Different columns: parallel edges alternate sides (even index arcs above the boxes, odd below),
+  // each label outside its own arc. A label is wider than the short gap between the boxes, so two
+  // arcs on the same side would cross each other's labels; opposite sides never do.
   const dir = to.x > from.x ? 1 : -1;
+  const side = parallelIndex % 2 === 0 ? -1 : 1; // -1: above, 1: below
+  const arc = 40 + PARALLEL_BEND_STEP * Math.floor(parallelIndex / 2);
   const x0 = from.x + dir * NODE_HALF_WIDTH;
   const x1 = to.x - dir * (NODE_HALF_WIDTH + 6);
-  const y0 = from.y - NODE_HALF_HEIGHT / 2;
-  const y1 = to.y - NODE_HALF_HEIGHT / 2;
+  const y0 = from.y + (side * NODE_HALF_HEIGHT) / 2;
+  const y1 = to.y + (side * NODE_HALF_HEIGHT) / 2;
   const mx = (x0 + x1) / 2;
-  const my = (y0 + y1) / 2 - bend;
-  return { d: `M ${x0} ${y0} Q ${mx} ${my} ${x1} ${y1}`, labelX: mx, labelY: (y0 + y1) / 2 - bend / 2 - 6, textAnchor: "middle",
+  const my = (y0 + y1) / 2 + side * arc;
+  const labelY = side < 0 ? (y0 + y1) / 2 - arc / 2 - 6 : (y0 + y1) / 2 + arc / 2 + EDGE_LABEL_FONT + 2;
+  return { d: `M ${x0} ${y0} Q ${mx} ${my} ${x1} ${y1}`, labelX: mx, labelY, textAnchor: "middle",
     apexX: (x0 + 2 * mx + x1) / 4, apexY: (y0 + 2 * my + y1) / 4 };
 }
 
