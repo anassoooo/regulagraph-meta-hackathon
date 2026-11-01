@@ -17,15 +17,21 @@
     </nav>
   </header>
 
-  <!-- One mode indicator for the page; app.js rewrites it when the server has live mode enabled. -->
+  <!-- One mode indicator for the page; app.js rewrites it for live mode and for the static snapshot. -->
   <div id="mode-banner" class="banner replay" role="status">REPLAY MODE · Recorded Muse answers, re-verified against the official PDF text. No model is called.</div>
 
-  <ol class="workflow" aria-label="How RegulaGraph works">
-    <li><span class="step">1</span><span><strong>Regulatory source</strong> Official BCT circulars, hash-verified</span></li>
-    <li><span class="step">2</span><span><strong>AI candidate</strong> Muse proposes a relationship</span></li>
-    <li><span class="step">3</span><span><strong>Verified quotation</strong> Exact text located in the source PDF</span></li>
-    <li><span class="step">4</span><span><strong>Human review</strong> A reviewer records a decision on live runs; never a legal confirmation</span></li>
-  </ol>
+  <section class="intro" aria-label="What RegulaGraph does">
+    <p class="lead"><strong>RegulaGraph checks what an AI model says about Tunisian banking regulations against the official text.</strong>
+      Meta Muse proposes how circulars of the Banque Centrale de Tunisie relate: which article repeals, replaces, implements or only cites another.
+      A proposal is published only if every quotation it relies on is found, character for character, in the cited provision of the official PDF.</p>
+    <ol class="workflow" aria-label="How RegulaGraph works">
+      <li><span class="step">1</span><span><strong>Regulatory source</strong> Official BCT circulars, hash-verified</span></li>
+      <li><span class="step">2</span><span><strong>AI candidate</strong> Meta Muse proposes a relationship</span></li>
+      <li><span class="step">3</span><span><strong>Source fidelity: checked by code</strong> The exact quotation is located in the PDF. This proves where the words are, not what they mean</span></li>
+      <li><span class="step">4</span><span><strong>Meaning: human review</strong> Code cannot check whether the reading is right. A reviewer decides; never a legal confirmation</span></li>
+    </ol>
+    <p id="checks-summary" class="checks-summary" hidden></p>
+  </section>
 
   <main>
     <section id="view-investigate" class="view">
@@ -82,5 +88,11 @@
       </div>
     </section>
   </main>
+
+  <footer class="footer">
+    <p>Source documents: circulars of the Banque Centrale de Tunisie, <a href="https://www.bct.gov.tn/" target="_blank" rel="noopener noreferrer">https://www.bct.gov.tn/</a>.
+      Quotations are reproduced exactly, with their page; links open the official PDFs in a new window.
+      RegulaGraph is an independent hackathon project, not affiliated with or endorsed by the BCT. Nothing here is legal advice.</p>
+  </footer>
 </body>
 </html>

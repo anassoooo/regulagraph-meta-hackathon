@@ -33,10 +33,27 @@ h4 { font-size: .85rem; margin: 1rem 0 .4rem; text-transform: uppercase; letter-
 .banner.replay { background: #2b3a55; color: #ffe8a3; border-bottom: 3px solid #ffcc4d; }
 .banner.replay-live { background: #2b3a55; color: #ffe8a3; border-bottom: 3px solid #e05252; }
 .banner.live { background: #5a1d1d; color: #ffe1e1; border-bottom: 3px solid #e05252; }
+.banner.snapshot { background: #23324a; color: #e6f0ff; border-bottom: 3px solid #6aa5ff; }
+
+/* First-screen narrative (Sprint 5) */
+.intro { background: #fff; border-bottom: 1px solid var(--line); }
+.lead { margin: 0; padding: .7rem 1.25rem 0; font-size: .92rem; line-height: 1.45; color: var(--muted); max-width: 72rem; }
+.lead strong { color: var(--ink); font-size: 1rem; }
+.checks-summary { margin: 0; padding: .45rem 1.25rem .6rem; font-size: .82rem; color: var(--muted); border-top: 1px dashed var(--line); }
+.checks-summary strong { color: var(--ink); }
+.checks-summary .missed { color: var(--warn); font-weight: 600; }
+button.link { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; cursor: pointer; font: inherit; }
+.footer { padding: .75rem 1.25rem 1.25rem; font-size: .78rem; color: var(--muted); border-top: 1px solid var(--line); }
+.footer p { margin: 0; max-width: 72rem; }
+
+/* Structural probe table (Sprint 5) */
+.probe-origin { font-size: .85rem; background: var(--warn-bg); border-left: 3px solid var(--warn); padding: .45rem .7rem; }
+.probe-table tr.probe.limit td { background: var(--warn-bg); }
+.probe-table tr.probe.limit strong { color: var(--warn); }
 
 /* Workflow strip: source -> AI candidate -> verified quotation -> human review */
 .workflow { list-style: none; margin: 0; padding: .6rem 1rem; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: .5rem; background: #fff; border-bottom: 1px solid var(--line); counter-reset: none; }
+  gap: .5rem; background: #fff; counter-reset: none; }
 .workflow li { display: flex; align-items: flex-start; gap: .5rem; font-size: .8rem; color: var(--muted); min-width: 0; }
 .workflow strong { display: block; color: var(--ink); font-size: .85rem; }
 .workflow .step { flex: none; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: var(--accent); color: #fff;
