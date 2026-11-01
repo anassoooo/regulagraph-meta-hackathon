@@ -253,7 +253,8 @@ def evaluation() -> dict[str, Any]:
 def _evaluation() -> dict[str, Any]:
     summary = replay_service.current_summary()
     structural_files = sorted(Path(replay_service.RESULTS_DIR).glob("structural_*.json"))
-    structural = json.loads(structural_files[-1].read_text(encoding="utf-8"))["summary"] if structural_files else None
+    structural_run = json.loads(structural_files[-1].read_text(encoding="utf-8")) if structural_files else None
+    structural = structural_run["summary"] if structural_run else None
     latest = summary.get("latest_run_per_case", {})
     calls = {(c["file"], c["case_id"]): c for c in summary.get("calls", [])}
     cases = []
@@ -291,5 +292,48 @@ def _evaluation() -> dict[str, Any]:
                 "Hand-made proposals with a wrong relation type, or a forbidden link backed by a real quote, "
                 "pass every structural check and are published as candidates. Structural validation cannot "
                 "detect semantic errors; only review can."),
+            "probe_origin": PROBE_ORIGIN,
+            "source_file": structural_files[-1].name,
+            "by_probe": probe_breakdown(structural_run),
         },
     }
+
+
+PROBE_ORIGIN = ("Hand-authored test proposals, replayed through the real validation pipeline with no model call. "
+                "They are not Muse output.")
+
+
+def probe_breakdown(run: dict[str, Any]) -> list[dict[str, Any]]:
+    """Counts per probe type from the recorded structural run, in first-seen order. Read-only.
+
+    The recorded rows hold the probe type, the expectation, whether it was published and the rejection
+    reason code; they hold no proposal text, so none is returned. The per-type totals must add up to
+    the recorded summary, otherwise the stored run is treated as malformed (503).
+    """
+    groups: dict[str, dict[str, Any]] = {}
+    for row in run["results"]:
+        probe, expectation = row["probe"], row["expectation"]
+        if not isinstance(probe, str) or expectation not in ("accept", "reject", "undetectable"):
+            raise ValueError("malformed structural probe row")
+        g = groups.setdefault(probe, {"probe": probe, "expectation": expectation, "total": 0, "published": 0,
+                                      "rejected": 0, "as_expected": 0, "rejection_reasons": {}})
+        if g["expectation"] != expectation:
+            raise ValueError("inconsistent structural probe expectation")
+        g["total"] += 1
+        if row["published"] is True:
+            g["published"] += 1
+        elif row["published"] is False:
+            g["rejected"] += 1
+            reason = row["rejection"]
+            if not isinstance(reason, str):
+                raise ValueError("rejected structural probe without a reason")
+            g["rejection_reasons"][reason] = g["rejection_reasons"].get(reason, 0) + 1
+        else:
+            raise ValueError("malformed structural probe row")
+        if row["as_expected"] is True:
+            g["as_expected"] += 1
+    out = list(groups.values())
+    summary = run["summary"]
+    if sum(g["total"] for g in out) != summary["probes"] or sum(g["rejected"] for g in out) != summary["reject_total"]:
+        raise ValueError("structural probe rows disagree with the recorded summary")
+    return out

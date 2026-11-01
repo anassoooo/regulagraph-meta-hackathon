@@ -21,7 +21,11 @@ GOLDEN = {
     "E13": ("cd54a220e9af5f4ecb4099fa2318e8df1becbb349fc7e3305c617d1def0c8600", 3559),
 }
 SCENARIOS_SHA256 = "d9f97a62b9c19a5611a81fe51e9bfa6c2f565b5477c020d237ddea4b8ee39752"
-EVALUATION_SHA256 = "4fb7666c925c6dbaac72b9ec0589ab531ac3c5629d40a9563fdfd1075d5323a3"
+# Sprint 5 added three read-only keys to `structural` (probe_origin, source_file, by_probe). Without them the
+# response is byte-identical to the Sprint 3.5 capture, which is pinned separately below.
+EVALUATION_SHA256 = "00897c02519accabe843fcde0ba9760288363d1e3c6d29397cb2c0cf71706255"
+EVALUATION_SPRINT_3_5_SHA256 = "4fb7666c925c6dbaac72b9ec0589ab531ac3c5629d40a9563fdfd1075d5323a3"
+SPRINT_5_STRUCTURAL_KEYS = ("probe_origin", "source_file", "by_probe")
 
 pytestmark = pytest.mark.skipif(
     not all((DEFAULT_RAW_DIR / e.filename).is_file() for e in load_manifest().documents if e.role == "investigation"),
@@ -61,3 +65,13 @@ def test_replay_response_is_byte_identical(client, scenario_id) -> None:
 def test_scenarios_and_evaluation_are_byte_identical(client) -> None:
     assert hashlib.sha256(client.get("/api/scenarios").content).hexdigest() == SCENARIOS_SHA256
     assert hashlib.sha256(client.get("/api/evaluation").content).hexdigest() == EVALUATION_SHA256
+
+
+def test_evaluation_change_is_purely_additive(client) -> None:
+    import json
+
+    data = client.get("/api/evaluation").json()
+    for key in SPRINT_5_STRUCTURAL_KEYS:
+        del data["structural"][key]
+    body = json.dumps(data, ensure_ascii=False, allow_nan=False, indent=None, separators=(",", ":")).encode()
+    assert hashlib.sha256(body).hexdigest() == EVALUATION_SPRINT_3_5_SHA256
