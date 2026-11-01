@@ -321,6 +321,54 @@ export function inspectorModel(replay, relationshipId) {
   };
 }
 
+// --- scenario cards (P1) ------------------------------------------------------------------------
+
+// Plain-language English renderings of each curated scenario's own French question. They restate
+// the question only (no answer, no relationship claim). The API title stays as secondary text.
+export const SCENARIO_PLAIN_TITLES = {
+  E01: "Which circular does circular 2026-10 repeal or replace?",
+  E12: "Under which article of circular 2026-10 is Article 47 adopted?",
+  E05: "How is Article 15 of circular 2026-10 linked to Article 14?",
+  E13: "Does Article 35 of circular 2026-10 repeal or contradict Article 17?",
+};
+
+export function scenarioCard(sc) {
+  const plain = SCENARIO_PLAIN_TITLES[sc.id];
+  return {
+    title: plain || sc.title,
+    meta: plain ? `${sc.id}${sc.primary ? " · primary" : ""} · ${sc.title}` : `${sc.id}${sc.primary ? " · primary" : ""}`,
+  };
+}
+
+// --- evaluation overview (P1) -------------------------------------------------------------------
+
+// Counts computed from /api/evaluation only; nothing is assumed.
+export function evaluationSummary(evaluation) {
+  const cases = evaluation.cases || [];
+  const count = (status) => cases.filter((c) => c.status === status).length;
+  const notRun = count("not_run");
+  const s = evaluation.structural;
+  const limitations = [
+    `${notRun} of ${cases.length} cases have not been run live; only recorded runs are scored.`,
+    "“Validated” means the answer matched the author's annotation. It is not a legal verification, and the annotations have not been reviewed by a domain expert.",
+  ];
+  if (count("truncated")) limitations.push(`${count("truncated")} live run(s) were truncated by the token budget and produced no answer.`);
+  if (s) {
+    limitations.push(`Structural checks cannot catch semantic errors: ${s.undetectable_published} of ${s.undetectable_total} deliberately wrong proposals with real quotations were still published as candidates. This is why human review exists.`);
+  }
+  return {
+    tiles: [
+      { label: "Cases", value: cases.length },
+      { label: "Run live", value: cases.length - notRun },
+      { label: "Validated", value: count("validated"), kind: "ok" },
+      { label: "Truncated", value: count("truncated"), kind: "warn" },
+      { label: "Not validated", value: count("not_validated"), kind: "warn" },
+      { label: "Not run live", value: notRun, kind: "muted" },
+    ],
+    limitations,
+  };
+}
+
 export const EVAL_STATUS_LABELS = {
   validated: "Validated (annotation matched)",
   truncated: "Truncated: no answer",

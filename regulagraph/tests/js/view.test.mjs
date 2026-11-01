@@ -223,3 +223,36 @@ test("mode banner: with live mode on it never says no model is called, and names
   assert.match(modeBanner({ liveEnabled: true, view: "live", modelId: "m" }).text, /^LIVE RESULT .*AI-generated candidate, unconfirmed/);
   assert.match(modeBanner({ liveEnabled: true, view: "live-error" }).text, /did not produce a result\. Nothing was published/);
 });
+
+// --- Sprint 4 P1: scenario cards and evaluation overview ---------------------------------------------
+
+import { SCENARIO_PLAIN_TITLES, evaluationSummary, scenarioCard } from "../../app/web/view.js";
+
+test("scenario cards: plain-language title first, identifier and original title kept as metadata", () => {
+  const card = scenarioCard({ id: "E01", primary: true, title: "Explicit repeal: circular 2026-10 and circular 2018-16" });
+  assert.equal(card.title, "Which circular does circular 2026-10 repeal or replace?");
+  assert.equal(card.meta, "E01 · primary · Explicit repeal: circular 2026-10 and circular 2018-16");
+  assert.deepEqual(Object.keys(SCENARIO_PLAIN_TITLES).sort(), ["E01", "E05", "E12", "E13"]);
+  for (const t of Object.values(SCENARIO_PLAIN_TITLES)) assert.match(t, /\?$/, "titles restate a question, never an answer");
+  assert.deepEqual(scenarioCard({ id: "E99", primary: false, title: "Unknown case" }), { title: "Unknown case", meta: "E99" });
+});
+
+test("evaluation overview: counts come only from the response, with explicit limitations", () => {
+  const data = {
+    cases: [
+      { status: "validated" }, { status: "validated" }, { status: "truncated" }, { status: "not_run" }, { status: "not_run" },
+      { status: "not_validated" },
+    ],
+    structural: { undetectable_published: 15, undetectable_total: 15 },
+  };
+  const s = evaluationSummary(data);
+  assert.deepEqual(s.tiles.map((t) => [t.label, t.value]), [["Cases", 6], ["Run live", 4], ["Validated", 2], ["Truncated", 1],
+    ["Not validated", 1], ["Not run live", 2]]);
+  assert.match(s.limitations[0], /^2 of 6 cases have not been run live/);
+  assert.match(s.limitations.join(" "), /not a legal verification/);
+  assert.match(s.limitations.join(" "), /1 live run\(s\) were truncated/);
+  assert.match(s.limitations.join(" "), /15 of 15 deliberately wrong proposals .* published as candidates.*human review/);
+  const bare = evaluationSummary({ cases: [] });
+  assert.equal(bare.tiles[0].value, 0);
+  assert.equal(bare.limitations.length, 2);
+});

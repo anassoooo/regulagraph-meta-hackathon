@@ -68,11 +68,15 @@
     <section id="view-evaluation" class="view" hidden>
       <div class="panel wide">
         <h2>Evaluation (current scorer)</h2>
+        <div id="eval-summary" class="eval-summary" aria-label="Evaluation summary"></div>
+        <div id="eval-limitations" class="eval-limitations"></div>
         <p id="eval-meaning" class="hint"></p>
-        <table id="eval-table" class="eval-table">
-          <thead><tr><th>Case</th><th>Phenomenon</th><th>Polarity</th><th>Status</th><th>Detail</th></tr></thead>
-          <tbody></tbody>
-        </table>
+        <div class="eval-table-wrap">
+          <table id="eval-table" class="eval-table">
+            <thead><tr><th>Case</th><th>Phenomenon</th><th>Polarity</th><th>Status</th><th>Detail</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
         <h3>Structural validation probes (no model)</h3>
         <div id="eval-structural"></div>
       </div>

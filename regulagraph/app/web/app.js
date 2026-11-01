@@ -15,8 +15,10 @@ import {
   liveCallText,
   mergeReviews,
   modeBanner,
+  evaluationSummary,
   primaryRelationship,
   reviewStatusText,
+  scenarioCard,
   stateMessage,
 } from "./view.js";
 
@@ -87,9 +89,10 @@ async function loadScenarios() {
     list.replaceChildren();
     let primary = null;
     for (const sc of scenarios) {
-      const button = el("button", { className: "scenario", attrs: { type: "button", "data-scenario": sc.id } },
-        el("span", { className: "scenario-id", text: sc.primary ? `${sc.id} · primary` : sc.id }),
-        el("span", { className: "scenario-title", text: sc.title }));
+      const card = scenarioCard(sc);
+      const button = el("button", { className: "scenario", attrs: { type: "button", "data-scenario": sc.id, title: sc.question } },
+        el("span", { className: "scenario-title", text: card.title }),
+        el("span", { className: "scenario-id", text: card.meta }));
       button.addEventListener("click", () => runReplay(sc, button));
       list.append(el("li", {}, button));
       if (sc.primary && !primary) primary = { sc, button };
@@ -454,6 +457,14 @@ async function loadEvaluation() {
   try {
     const data = await api("/api/evaluation");
     $("eval-meaning").textContent = `Scorer version ${data.scoring_version}. ${data.meaning}`;
+    const summary = evaluationSummary(data);
+    $("eval-summary").replaceChildren(...summary.tiles.map((t) => el("div", { className: `tile ${t.kind || ""}` },
+      el("span", { className: "tile-value", text: String(t.value) }), el("span", { className: "tile-label", text: t.label }))));
+    const lim = $("eval-limitations");
+    lim.replaceChildren(el("strong", { text: "Limitations" }));
+    const ul = el("ul");
+    for (const text of summary.limitations) ul.append(el("li", { text }));
+    lim.append(ul);
     tbody.replaceChildren();
     for (const row of evaluationRows(data)) {
       tbody.append(el("tr", { className: `status-${row.status}` }, el("td", { text: row.id }), el("td", { text: row.phenomenon }),
