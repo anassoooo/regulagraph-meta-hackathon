@@ -196,3 +196,67 @@ test("a response for a different scenario than the one requested is rejected", a
   assert.match(ui.state, /does not belong to the selected scenario/);
   assert.deepEqual(ui.edges, []);
 });
+
+// --- Sprint 4: first-screen experience ---------------------------------------------------------
+
+test("first screen: the primary scenario opens automatically and fills the evidence inspector", async () => {
+  const app = await boot();
+  assert.ok(app.pending.has("E01"), "E01 is requested without any click");
+  assert.ok(!app.pending.has("E12"));
+  assert.deepEqual(app.ui().selected, ["E01"]);
+  assert.match(app.ui().state, /Replaying/);
+  await app.succeed("E01", "repeals");
+  assertShowsOnly(app.ui(), "E01", "E12");
+  assert.match(app.ui().inspector, /AI-generatedCandidateUnconfirmed/, "candidate disclosures are shown");
+  assert.match(app.ui().inspector, /Source text verified \(exact location\)/);
+  assert.match(document.getElementById("mode-banner").textContent, /^REPLAY MODE .*No model is called/);
+});
+
+test("first screen: the graph is sized to its drawing", async () => {
+  const app = await boot();
+  await app.succeed("E01", "repeals");
+  const svg = document.getElementById("graph");
+  const [x, y, w, h] = svg.getAttribute("viewBox").split(" ").map(Number);
+  assert.ok(w > 0 && h > 0 && Number.isFinite(x) && Number.isFinite(y));
+  assert.equal(svg.style.maxWidth, `${Math.round(w * 1.3)}px`);
+  assert.equal(svg.getAttribute("style"), null, "no inline style attribute (blocked by the CSP)");
+  assert.deepEqual(app.ui().edges, ["rel_E01"]);
+  assert.match(svg.textContent, /repeals · candidate/);
+});
+
+test("first screen: the inspector opens the most informative relationship, not simply the first", async () => {
+  const app = await boot();
+  const payload = replayFor("E01", "references");
+  const weak = { ...payload.relationships[0], relationship_id: "rel_weak", target_mentioned_in_quote: false,
+    evidence: [{ ...payload.relationships[0].evidence[0], quote: "Weak quote", source_text_verified: false }] };
+  payload.relationships = [weak, payload.relationships[0]];
+  app.pending.get("E01").resolve(response(200, payload));
+  await flush();
+  assert.match(app.ui().inspector, /Quote only in E01/);
+  assert.doesNotMatch(app.ui().inspector, /Weak quote/);
+});
+
+test("first screen: auto-open never overrides a scenario the user already picked", async () => {
+  const document = new FakeDocument();
+  globalThis.document = document;
+  const requested = [];
+  let releaseScenarios;
+  globalThis.fetch = (url) => {
+    if (url === "/api/scenarios") return new Promise((res) => { releaseScenarios = () => res(response(200, SCENARIOS)); });
+    if (url === "/api/live/status") return Promise.resolve(response(200, { enabled: true, model_id: "m", budget: null }));
+    if (url === "/api/live/documents") return Promise.resolve(response(200, []));
+    requested.push(url);
+    return new Promise(() => {});
+  };
+  await import(`../../app/web/app.js?boot=${++boots}`);
+  await flush();
+  // While the scenario list is still loading the user acts first (here: the live panel's Run button
+  // with no question, which is refused locally and sends nothing).
+  document.getElementById("live-run").click();
+  await flush();
+  assert.match(document.getElementById("state").textContent, /Enter a question\. No paid call was made\./);
+  releaseScenarios();
+  await flush();
+  assert.deepEqual(requested, [], "no automatic replay (and no live call) after the user acted");
+  assert.equal(document.querySelectorAll(".scenario").length, 2, "the scenario list still loads");
+});

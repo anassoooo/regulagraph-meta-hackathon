@@ -116,14 +116,18 @@ async function boot({ enabled = true, storedReviews = [], deferReviewGets = fals
 test("replay-only server: no live controls are rendered", async () => {
   const app = await boot({ enabled: false });
   assert.equal(app.docBoxes().length, 0);
-  assert.equal(app.$("live-banner").textContent, "");
+  assert.match(app.$("mode-banner").textContent, /^REPLAY MODE .*No model is called\.$/);
+  assert.equal(app.$("mode-banner").className, "banner replay");
   assert.equal(app.posts.length, 0);
 });
 
-test("live server: banner, three unselected documents, budget", async () => {
+test("live server: one mode banner, three unselected documents, budget", async () => {
   const app = await boot();
-  assert.match(app.$("live-banner").textContent, /LIVE MODE ENABLED.*paid Meta Muse call/);
-  assert.equal(app.$("live-banner").hidden, false);
+  const banner = app.$("mode-banner");
+  assert.match(banner.textContent, /^LIVE MODE ON .*recorded replays, not new calls.*Run live investigation.*paid Meta Muse call/);
+  assert.doesNotMatch(banner.textContent, /No model is called/);
+  assert.equal(banner.className, "banner replay-live");
+  assert.equal(app.$("live-banner").textContent, "", "the old second banner is gone");
   assert.deepEqual(app.docBoxes().map((b) => b.getAttribute("data-live-doc")), ["d-one", "d-two", "d-three"]);
   assert.ok(app.docBoxes().every((b) => b.checked !== true), "no document is approved by default");
   assert.match(app.$("live-budget").textContent, /0\.0000 of 4\.50 USD/);
@@ -383,4 +387,43 @@ test("mergeReviews keeps the highest sequence per relationship and ignores other
   for (const sequence of [undefined, 0, -1, 1.5, "3"]) {
     assert.equal(mergeReviews(new Map(), [{ ...a1, sequence }], "rep-A", "digest-A").size, 0);
   }
+});
+
+// --- Sprint 4: one mode indicator across replay, live loading, live result and live error ----------
+
+const banner = (app) => ({ text: app.$("mode-banner").textContent, kind: app.$("mode-banner").className });
+
+test("mode banner follows the active view: replay, paid call in progress, live result, back to replay", async () => {
+  const app = await boot();
+  assert.match(banner(app).text, /^LIVE MODE ON/);
+  assert.equal(app.pendingReplay.size, 1, "the first screen opens a recorded replay, never a live call");
+  assert.equal(app.posts.length, 0);
+  app.fill();
+  await app.run();
+  assert.deepEqual(banner(app), { kind: "banner live", text: "LIVE · Paid Meta Muse call in progress (muse-spark-1.3)." });
+  assert.match(app.ui().state, /Calling Meta Muse \(paid\)/);
+  app.posts[0].resolve(response(200, liveFor("Which circular amends which?", "A")));
+  await flush();
+  assert.match(banner(app).text, /^LIVE RESULT · From a paid Meta Muse call \(muse-spark-1\.3\)/);
+  assert.match(app.ui().recording, /^Live/);
+  app.$("scenario-list").querySelector('[data-scenario="E01"]').click();
+  await flush();
+  assert.match(banner(app).text, /^LIVE MODE ON .*recorded replays, not new calls/);
+  for (const b of [banner(app)]) assert.doesNotMatch(b.text, /No model is called/);
+});
+
+test("mode banner: a failed live request says nothing was published; a refused form says no paid call", async () => {
+  const app = await boot();
+  app.fill();
+  await app.run();
+  app.posts[0].resolve(response(503, { error: { code: "live_store_unavailable", message: "Live mode is blocked" } }));
+  await flush();
+  assert.equal(banner(app).kind, "banner live");
+  assert.match(banner(app).text, /did not produce a result\. Nothing was published/);
+  assert.match(app.ui().state, /Live mode is blocked/);
+  app.fill({ confirm: false });
+  await app.run();
+  assert.equal(app.posts.length, 1, "nothing sent without confirmation");
+  assert.match(app.ui().state, /Confirm the paid Meta call\. No paid call was made\./);
+  assert.match(banner(app).text, /^LIVE MODE ON/);
 });

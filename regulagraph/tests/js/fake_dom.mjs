@@ -41,6 +41,7 @@ export class FakeElement {
     this.className = "";
     this.classList = new ClassList(this);
     this.dataset = {};
+    this.style = {}; // CSSOM properties set by app.js (e.g. style.maxWidth)
   }
   setAttribute(name, value) {
     this.attributes.set(name, String(value));
