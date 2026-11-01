@@ -186,6 +186,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 /* Sprint 3.5 live mode (functional styling only) */
 .badge.live { background: #5a1d1d; color: #ffe1e1; }
 .live-panel { margin-top: 1.25rem; border-top: 1px solid #d9dde5; padding-top: .75rem; }
+.picker.live-first .live-panel { margin: 0 0 1.25rem; border-top: 0; padding-top: 0; border-bottom: 1px solid #d9dde5; padding-bottom: .75rem; }
 .live-panel label, .live-panel textarea, .live-panel button { display: block; width: 100%; box-sizing: border-box; }
 .live-panel textarea, .review textarea { font: inherit; margin: .25rem 0 .5rem; }
 .live-docs { border: 1px solid #d9dde5; border-radius: 6px; margin: .5rem 0; }

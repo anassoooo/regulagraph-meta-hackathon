@@ -19,6 +19,12 @@ class ClassList {
   contains(name) {
     return this.#set().has(name);
   }
+  add(...names) {
+    for (const n of names) this.toggle(n, true);
+  }
+  remove(...names) {
+    for (const n of names) this.toggle(n, false);
+  }
   toggle(name, force) {
     const set = this.#set();
     const on = force === undefined ? !set.has(name) : Boolean(force);
@@ -58,6 +64,21 @@ export class FakeElement {
       const node = n instanceof FakeElement || n instanceof FakeText ? n : new FakeText(n);
       node.parent = this;
       this.children.push(node);
+    }
+  }
+  get parentNode() {
+    return this.parent || null;
+  }
+  get firstChild() {
+    return this.children[0] || null;
+  }
+  // Like the DOM: a node that already has a parent is moved, not copied.
+  prepend(...nodes) {
+    for (const n of [...nodes].reverse()) {
+      const node = n instanceof FakeElement || n instanceof FakeText ? n : new FakeText(n);
+      if (node.parent) node.parent.children = node.parent.children.filter((c) => c !== node);
+      node.parent = this;
+      this.children.unshift(node);
     }
   }
   replaceChildren(...nodes) {

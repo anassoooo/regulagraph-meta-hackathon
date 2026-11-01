@@ -411,7 +411,16 @@ async function loadLive() {
   }
   $("live-budget").textContent = budgetText(status.budget);
   $("live-run").addEventListener("click", runLive);
-  $("live-panel").hidden = false;
+  const panel = $("live-panel");
+  panel.hidden = false;
+  // Live-first layout: when this server can make paid calls, the live form comes before the recorded
+  // scenarios (moved in the DOM, so keyboard and reading order match the screen). Replay-only servers
+  // never reach this point, so their layout is unchanged.
+  const picker = panel.parentNode;
+  if (picker && picker.firstChild !== panel) {
+    picker.prepend(panel);
+    picker.classList.add("live-first");
+  }
 }
 
 function liveRequestProblem(question, documentIds, confirmed) {
