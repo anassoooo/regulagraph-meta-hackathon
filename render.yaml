@@ -1,0 +1,35 @@
+# RegulaGraph public demo: a static, replay-only snapshot (Sprint 5). Nothing here runs server code,
+# calls a model or holds a key. Render only serves the files that were built and committed locally:
+#
+#   cd regulagraph && python scripts/build_snapshot.py --out site    # needs the hash-verified PDFs locally
+#
+# The build command only checks that the snapshot exists. Automatic deploys are off: a deploy is a
+# manual action in the Render dashboard, after PM confirmation.
+# The security headers are the same as the local app's (app/main.py); tests/test_snapshot_hosting.py keeps them in sync.
+services:
+  - type: web
+    runtime: static
+    name: regulagraph-snapshot
+    branch: main
+    autoDeployTrigger: "off"
+    buildCommand: test -f regulagraph/site/snapshot-manifest.json && test -f regulagraph/site/api/evaluation.json
+    staticPublishPath: ./regulagraph/site
+    buildFilter:
+      paths:
+        - regulagraph/site/**
+    headers:
+      - path: /*
+        name: Content-Security-Policy
+        value: "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: no-referrer
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Cache-Control
+        value: no-store
