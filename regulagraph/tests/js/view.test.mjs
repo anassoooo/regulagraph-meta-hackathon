@@ -132,3 +132,94 @@ test("evaluation rows show truncation honestly", () => {
   assert.equal(rows[0].detail, "finish_reason=length; 2046 of 2048 completion tokens were reasoning");
   assert.equal(rows[0].phenomenon, "provision level overreach");
 });
+
+// --- Sprint 4: first screen, graph fit, mode indicator ------------------------------------------
+
+import {
+  EDGE_LABEL_FONT,
+  NODE_HALF_HEIGHT,
+  edgeLabelBox,
+  edgeLabelText,
+  graphBounds,
+  modeBanner,
+  primaryRelationship,
+} from "../../app/web/view.js";
+
+const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+const nodeBox = (n) => ({ left: n.x - NODE_HALF_WIDTH, right: n.x + NODE_HALF_WIDTH, top: n.y - NODE_HALF_HEIGHT,
+  bottom: n.y + NODE_HALF_HEIGHT });
+
+function labelBoxes(g) {
+  const nodes = new Map(g.nodes.map((n) => [n.id, n]));
+  return g.edges.map((e) => edgeLabelBox(edgePath(nodes.get(e.from), nodes.get(e.to), e.parallelIndex), e));
+}
+
+test("the most informative relationship opens first; ties keep the response order", () => {
+  assert.equal(primaryRelationship(replay).relationship_id, "rel_1"); // verified and names its target
+  const reordered = { ...replay, relationships: [replay.relationships[1], replay.relationships[0]] };
+  assert.equal(primaryRelationship(reordered).relationship_id, "rel_1", "chosen on content, not position");
+  const tie = { ...replay, relationships: [{ ...replay.relationships[0], relationship_id: "a" },
+    { ...replay.relationships[0], relationship_id: "b" }] };
+  assert.equal(primaryRelationship(tie).relationship_id, "a");
+  const verified = { ...replay, relationships: [
+    { ...replay.relationships[0], relationship_id: "unverified", evidence: [{ ...replay.relationships[0].evidence[0], source_text_verified: false }] },
+    { ...replay.relationships[1], relationship_id: "verified", evidence: [{ ...replay.relationships[1].evidence[0], source_text_verified: true }] },
+  ] };
+  assert.equal(primaryRelationship(verified).relationship_id, "verified", "verified evidence outranks a target mention");
+  assert.equal(primaryRelationship({ ...replay, relationships: [] }), null);
+});
+
+for (const [name, shape] of [
+  ["two documents with parallel edges (E01 shape)", replay],
+  ["one document, internal reference (E05/E12/E13 shape)", {
+    ...replay,
+    documents: [replay.documents[0]],
+    provisions: [replay.provisions[0], { provision_id: "prov_2", document_id: "doc_a", kind: "article", label: "Article 3",
+      page_start: 2, page_end: 2 }],
+    relationships: [{ ...replay.relationships[0], target_kind: "provision", target_id: "prov_2" }],
+  }],
+]) {
+  test(`graph fit: every node, curve and label is inside the viewBox, with no label collisions (${name})`, () => {
+    const g = buildGraph(shape);
+    const b = graphBounds(g);
+    const inside = (box) => box.left >= b.x && box.right <= b.x + b.width && box.top >= b.y && box.bottom <= b.y + b.height;
+    for (const n of g.nodes) assert.ok(inside(nodeBox(n)), `node ${n.id} clipped`);
+    const labels = labelBoxes(g);
+    for (const l of labels) assert.ok(inside(l), "edge label clipped");
+    for (let i = 0; i < labels.length; i++) {
+      for (let j = i + 1; j < labels.length; j++) assert.ok(!overlaps(labels[i], labels[j]), "edge labels overlap");
+      for (const n of g.nodes) assert.ok(!overlaps(labels[i], nodeBox(n)), `edge label overlaps node ${n.id}`);
+    }
+    // Tight fit: no large empty margin, so the drawing uses the panel width (projector legibility).
+    const nodeSpan = Math.max(...g.nodes.map((n) => n.x)) - Math.min(...g.nodes.map((n) => n.x)) + 2 * NODE_HALF_WIDTH;
+    assert.ok(b.width < nodeSpan + 2 * 18 + 260, `viewBox ${b.width} is much wider than the drawing`);
+  });
+}
+
+test("parallel edges are visibly separated: labels at least one line apart", () => {
+  const [a, b] = labelBoxes(buildGraph(replay));
+  assert.ok(Math.abs(a.top - b.top) >= EDGE_LABEL_FONT + 4, `labels only ${Math.abs(a.top - b.top)} apart`);
+});
+
+test("edge labels always carry the candidate status", () => {
+  for (const e of buildGraph(replay).edges) assert.match(edgeLabelText(e), /^(repeals|supersedes) · candidate$/);
+});
+
+test("mode banner: replay-only servers say no model is called", () => {
+  const m = modeBanner({ liveEnabled: false });
+  assert.equal(m.kind, "replay");
+  assert.match(m.text, /^REPLAY MODE .*No model is called\.$/);
+});
+
+test("mode banner: with live mode on it never says no model is called, and names the paid call", () => {
+  const views = ["replay", "live-loading", "live", "live-error"];
+  for (const view of views) {
+    const m = modeBanner({ liveEnabled: true, view, modelId: "muse-spark-1.3" });
+    assert.doesNotMatch(m.text, /no model is called/i, view);
+    assert.match(m.text, /paid/i, view);
+  }
+  assert.match(modeBanner({ liveEnabled: true, view: "replay" }).text, /^LIVE MODE ON .*recorded replays, not new calls/);
+  assert.match(modeBanner({ liveEnabled: true, view: "live-loading", modelId: "m" }).text, /^LIVE · Paid Meta Muse call in progress \(m\)/);
+  assert.match(modeBanner({ liveEnabled: true, view: "live", modelId: "m" }).text, /^LIVE RESULT .*AI-generated candidate, unconfirmed/);
+  assert.match(modeBanner({ liveEnabled: true, view: "live-error" }).text, /did not produce a result\. Nothing was published/);
+});

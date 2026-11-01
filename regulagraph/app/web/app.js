@@ -6,12 +6,16 @@ import {
   REVIEW_ACTIONS,
   budgetText,
   buildGraph,
+  edgeLabelText,
   edgePath,
   errorMessage,
   evaluationRows,
+  graphBounds,
   inspectorModel,
   liveCallText,
   mergeReviews,
+  modeBanner,
+  primaryRelationship,
   reviewStatusText,
   stateMessage,
 } from "./view.js";
@@ -81,13 +85,18 @@ async function loadScenarios() {
   try {
     const scenarios = await api("/api/scenarios");
     list.replaceChildren();
+    let primary = null;
     for (const sc of scenarios) {
       const button = el("button", { className: "scenario", attrs: { type: "button", "data-scenario": sc.id } },
         el("span", { className: "scenario-id", text: sc.primary ? `${sc.id} · primary` : sc.id }),
         el("span", { className: "scenario-title", text: sc.title }));
       button.addEventListener("click", () => runReplay(sc, button));
       list.append(el("li", {}, button));
+      if (sc.primary && !primary) primary = { sc, button };
     }
+    // First screen: open the primary scenario (a recorded replay, never a model call), unless the
+    // user already started something while the list was loading.
+    if (primary && replaySeq === 0) runReplay(primary.sc, primary.button);
   } catch (err) {
     list.replaceChildren();
     showState(errorMessage(err.status || 0, err.body));
@@ -101,6 +110,22 @@ let reviewQueues = new Map(); // `${report_id} ${relationship_id}` -> tail of th
 // Latest request wins: each selection gets a new sequence number and aborts the previous request.
 // A response or error for a superseded selection is dropped, so it can never overwrite the UI.
 let replaySeq = 0;
+let liveStatus = null; // /api/live/status when the server has live mode enabled, else null
+let modeView = "replay"; // what the investigate view shows: replay | live-loading | live | live-error
+let activeView = "investigate";
+
+function renderModeBanner() {
+  const view = activeView === "evaluation" ? "replay" : modeView;
+  const banner = modeBanner({ liveEnabled: Boolean(liveStatus), view, modelId: liveStatus && liveStatus.model_id });
+  const box = $("mode-banner");
+  box.className = `banner ${banner.kind}`;
+  box.textContent = banner.text;
+}
+
+function setMode(view) {
+  modeView = view;
+  renderModeBanner();
+}
 let replayAbort = null;
 
 async function runReplay(sc, button) {
@@ -111,6 +136,7 @@ async function runReplay(sc, button) {
   current = null; // stale evidence must not be selectable while the new replay loads
   document.querySelectorAll(".scenario").forEach((b) => b.classList.toggle("selected", b === button));
   clearResult();
+  setMode("replay");
   $("question").append(el("span", { className: "label", text: "Question" }), el("p", { text: sc.question }));
   showState({ kind: "loading", title: "Replaying…", body: "Re-verifying the recorded answer against the source text." });
   let replay;
@@ -156,7 +182,8 @@ function renderBody(replay) {
     for (const r of replay.rejected) ul.append(el("li", { text: `${r.reason}: ${r.detail}` }));
     box.append(ul);
   }
-  if (replay.relationships.length) selectRelationship(replay.relationships[0].relationship_id);
+  const first = primaryRelationship(replay);
+  if (first) selectRelationship(first.relationship_id);
 }
 
 // --- graph -----------------------------------------------------------------------
@@ -165,7 +192,11 @@ function renderGraph(replay) {
   const graph = buildGraph(replay);
   const root = $("graph");
   root.replaceChildren();
-  root.setAttribute("viewBox", `0 0 ${graph.width} ${graph.height}`);
+  // The viewBox is the drawing's own bounding box, so the graph fills the panel. It is never
+  // enlarged past 1.3x, so a one-edge graph does not become oversized on wide screens.
+  const b = graphBounds(graph);
+  root.setAttribute("viewBox", `${b.x} ${b.y} ${b.width} ${b.height}`);
+  root.setAttribute("style", `max-width: ${Math.round(b.width * 1.3)}px`);
   const defs = svg("defs");
   const marker = svg("marker", { id: "arrow", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 8, markerHeight: 8, orient: "auto-start-reverse" });
   marker.append(svg("path", { d: "M 0 0 L 10 5 L 0 10 z", class: "arrowhead" }));
@@ -181,7 +212,7 @@ function renderGraph(replay) {
     g.append(svg("title", {}, `${e.label} (AI candidate, unconfirmed)`));
     g.append(svg("path", { d: path.d, class: "edge-hit" }));
     g.append(svg("path", { d: path.d, class: "edge-line", "marker-end": "url(#arrow)" }));
-    g.append(svg("text", { x: path.labelX, y: path.labelY, class: "edge-label", "text-anchor": path.textAnchor }, `${e.label} · candidate`));
+    g.append(svg("text", { x: path.labelX, y: path.labelY, class: "edge-label", "text-anchor": path.textAnchor }, edgeLabelText(e)));
     const select = () => selectRelationship(e.id);
     g.addEventListener("click", select);
     g.addEventListener("keydown", (ev) => {
@@ -343,9 +374,8 @@ async function loadLive() {
   } catch {
     return;
   }
-  const banner = $("live-banner");
-  banner.textContent = `LIVE MODE ENABLED: "Run live investigation" makes a paid Meta Muse call (${status.model_id}). Curated scenarios remain replays. Every result is an AI-generated candidate, unconfirmed.`;
-  banner.hidden = false;
+  liveStatus = status;
+  renderModeBanner();
   const box = $("live-docs");
   box.replaceChildren(el("legend", { text: "Source documents (only the selected ones are used)" }));
   for (const d of docs) {
@@ -381,10 +411,12 @@ async function runLive() {
   $("question").append(el("span", { className: "label", text: "Question (live)" }), el("p", { text: question }));
   const problem = liveRequestProblem(question, documentIds, confirmed);
   if (problem) {
-    showState({ kind: "error", title: "Live investigation not started", body: problem });
+    setMode("replay"); // nothing was sent: no paid call is in progress
+    showState({ kind: "error", title: "Live investigation not started", body: `${problem} No paid call was made.` });
     return;
   }
   $("live-confirm").checked = false; // every paid call needs a fresh confirmation
+  setMode("live-loading");
   showState({ kind: "loading", title: "Calling Meta Muse (paid)…",
     body: "Only the selected documents are used as source context. Quotations are re-verified against the source text." });
   let live;
@@ -395,15 +427,18 @@ async function runLive() {
     });
   } catch (err) {
     if (seq !== replaySeq) return;
+    setMode("live-error");
     showState(errorMessage(err.status || 0, err.body));
     return;
   }
   if (seq !== replaySeq) return;
   if (!live || live.mode !== "live" || live.question !== question) {
+    setMode("live-error");
     showState(errorMessage(0, { error: { message: "The live response does not match the request." } }));
     return;
   }
   current = live;
+  setMode("live");
   $("live-budget").textContent = budgetText(live.budget);
   $("recording").replaceChildren(el("span", { className: "badge live", text: "Live" }), el("span", { text: liveCallText(live) }));
   renderBody(live);
@@ -442,9 +477,15 @@ async function loadEvaluation() {
 // --- tabs ---------------------------------------------------------------------------
 
 function showView(name) {
-  document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === name));
+  activeView = name;
+  document.querySelectorAll(".tab").forEach((t) => {
+    const on = t.dataset.view === name;
+    t.classList.toggle("active", on);
+    t.setAttribute("aria-pressed", String(on));
+  });
   $("view-investigate").hidden = name !== "investigate";
   $("view-evaluation").hidden = name !== "evaluation";
+  renderModeBanner();
   if (name === "evaluation") loadEvaluation();
 }
 
