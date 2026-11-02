@@ -168,6 +168,43 @@ def test_evaluation_reports_scorer_v2_and_e10_truncated(client) -> None:
     assert "cannot detect semantic errors" in s["undetectable_meaning"]
 
 
+def test_evaluation_breaks_probes_down_by_type_from_the_recorded_run(client) -> None:
+    s = client.get("/api/evaluation").json()["structural"]
+    assert s["probe_origin"].startswith("Hand-authored test proposals") and "not Muse output" in s["probe_origin"]
+    assert s["source_file"] == "structural_20261030T152059Z.json"
+    rows = {g["probe"]: g for g in s["by_probe"]}
+    assert {k: (g["expectation"], g["total"], g["published"], g["rejected"], g["rejection_reasons"]) for k, g in rows.items()} == {
+        "gold": ("accept", 7, 7, 0, {}),
+        "paraphrased_quote": ("reject", 7, 0, 7, {"quote_not_found": 7}),
+        "fabricated_target": ("reject", 7, 0, 7, {"unknown_target": 7}),
+        "reversed_direction": ("reject", 5, 0, 5, {"no_source_evidence": 5}),
+        "quote_from_unrelated_provision": ("reject", 5, 0, 5, {"quote_outside_related": 5}),
+        "wrong_type:amends": ("undetectable", 7, 7, 0, {}),
+        "forbidden_0_with_real_quote": ("undetectable", 6, 6, 0, {}),
+        "forbidden_1_with_real_quote": ("undetectable", 2, 2, 0, {}),
+    }
+    assert all(g["as_expected"] == g["total"] for g in s["by_probe"])
+    # The recorded rows hold no proposal text, and none is invented.
+    assert all(set(g) == {"probe", "expectation", "total", "published", "rejected", "as_expected", "rejection_reasons"}
+               for g in s["by_probe"])
+
+
+def test_structural_rows_that_disagree_with_their_summary_are_503(client, monkeypatch, tmp_path) -> None:
+    import json
+    import shutil
+
+    src = Path(replay_service.RESULTS_DIR)
+    for f in src.glob("*.json"):
+        shutil.copy(f, tmp_path / f.name)
+    path = next(tmp_path.glob("structural_*.json"))
+    run = json.loads(path.read_text(encoding="utf-8"))
+    run["results"] = run["results"][:-1]
+    path.write_text(json.dumps(run), encoding="utf-8")
+    monkeypatch.setattr(replay_service, "RESULTS_DIR", tmp_path)
+    r = client.get("/api/evaluation")
+    assert r.status_code == 503 and r.json()["error"]["code"] == "demo_unavailable"
+
+
 @pytest.mark.parametrize("path", ["/", "/app.js", "/view.js", "/style.css", "/api/scenarios", "/api/evaluation"])
 def test_security_headers_everywhere(client, path) -> None:
     r = client.get(path)

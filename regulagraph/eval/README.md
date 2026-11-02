@@ -68,7 +68,34 @@ Costs are estimated from the published prices ($1.25 / $4.25 per million input /
 | `live_20261030T153355Z.json` | E05 | 200 | stop | 3,834 | 936 (762) | 8.0 s | $0.009 |
 | `live_20261030T153423Z.json` | E10 | 200 | **length** | 4,511 | 2,048 (2,046) | 9.6 s | $0.014 |
 
-7 requests, about **$0.065** in total. Calls after the smoke test used `reasoning_effort=low` and a 2,048-token cap.
+These 7 requests, about **$0.065**, are only the recorded smoke test and evaluation runs above, not total Meta API usage: local live mode made further calls that are not part of the evaluation (see the root README). Calls after the smoke test used `reasoning_effort=low` and a 2,048-token cap.
+
+#### Source text removed from the recordings (2026-11-01)
+
+**What changed.** The recorded runs no longer contain BCT provision text. `scripts/minimize_recordings.py` removed exactly one field, `results[].report.provisions[].text`, from 49 provisions across the six files, and added a top-level `source_text_removed` note. Nothing else changed:
+- `model_call.raw_text` (the model output that replay feeds back);
+- evidence quotations, provision IDs, labels and segments (pages and offsets);
+- content digests, report IDs, usage, latency, and the historical and current scores.
+
+The git diff of each file is the removed `text` lines, the comma before each of them, and the note.
+
+| File | Before (sha256, LF bytes) | After |
+|---|---|---|
+| `live_20261030T151756Z.json` | `4cc9ee792cfede84…` (24598) | `018466564eea6afd…` (15613) |
+| `live_20261030T151822Z.json` | `2c796f5f9385ab52…` (18978) | `61179de30e73fe18…` (9314) |
+| `live_20261030T153246Z.json` | `33b2596b0d8636f3…` (22511) | `edb05e49fc4e1221…` (12813) |
+| `live_20261030T153322Z.json` | `11c680a0641fad6e…` (21948) | `09553beda91394c5…` (12595) |
+| `live_20261030T153355Z.json` | `1486d36f0f972b4e…` (25135) | `111068bb65e8126a…` (12361) |
+| `live_20261030T153423Z.json` | `e0717077857f6ae2…` (40782) | `8ec14e37fa6d25ec…` (11218) |
+
+**What still reproduces:**
+- **Replay:** the four demo replays reproduce their recorded runs exactly. Replay uses only provision IDs and re-derives the text from the hash-verified PDFs. The replay and evaluation API responses are byte-identical (`tests/test_replay_golden.py`).
+- **Rescoring:** `python scripts/run_eval.py rescore eval/results/live_*.json` rebuilds each provision from the corpus by its content-derived ID, and fails if an ID is missing or a stored text differs. It reproduces every stored `rescored` block and `current_scoring_summary.json` byte for byte (`tests/test_source_text_policy.py`).
+
+**What no longer reproduces byte for byte:**
+- **The files' previous bytes** (left column). Restoring them would require reinserting full provision text taken from the PDFs.
+- **The stored `report` hashing to `content_digest`.** The stored report is now a reduced view, so hashing it no longer gives `content_digest`. The digest is still checked on every replay, which recomputes the full report from the PDFs.
+- **New recordings:** `run_eval.py live` writes them without provision text from the start.
 
 #### B. Current scorer: **version 2** (authoritative)
 

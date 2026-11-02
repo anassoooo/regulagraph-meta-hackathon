@@ -1,11 +1,13 @@
 // DOM controller. All untrusted text (source quotations, model output, labels) is
 // inserted with textContent or SVG text nodes, never as HTML.
 import {
+  EXTRACTION_NOTE,
   NODE_HALF_HEIGHT,
   NODE_HALF_WIDTH,
   REVIEW_ACTIONS,
   budgetText,
   buildGraph,
+  checksSummary,
   edgeLabelText,
   edgePath,
   errorMessage,
@@ -17,8 +19,10 @@ import {
   modeBanner,
   evaluationSummary,
   primaryRelationship,
+  probeRows,
   reviewStatusText,
   scenarioCard,
+  snapshotApiPath,
   stateMessage,
 } from "./view.js";
 
@@ -41,7 +45,23 @@ function svg(tag, attrs = {}, text) {
   return node;
 }
 
-async function api(path, options) {
+// Static snapshot (hosted build): marked by a <meta name="regulagraph-snapshot"> tag that only the snapshot
+// build adds. The page then reads the exported API responses as static files and never calls a server.
+const snapshotMeta = document.querySelector('meta[name="regulagraph-snapshot"]');
+const SNAPSHOT = snapshotMeta
+  ? { commit: snapshotMeta.getAttribute("data-commit"), builtAt: snapshotMeta.getAttribute("data-built") }
+  : null;
+
+async function api(path, options = {}) {
+  if (SNAPSHOT) {
+    const file = snapshotApiPath(path, options.method || "GET");
+    if (!file) {
+      throw Object.assign(new Error("not in snapshot"), { status: 404,
+        body: { error: { code: "not_in_snapshot", message: "This static snapshot contains only the recorded replays and the evaluation." } } });
+    }
+    path = file;
+    options = { signal: options.signal };
+  }
   const response = await fetch(path, { headers: { Accept: "application/json" }, ...options });
   let body = null;
   try {
@@ -119,7 +139,7 @@ let activeView = "investigate";
 
 function renderModeBanner() {
   const view = activeView === "evaluation" ? "replay" : modeView;
-  const banner = modeBanner({ liveEnabled: Boolean(liveStatus), view, modelId: liveStatus && liveStatus.model_id });
+  const banner = modeBanner({ liveEnabled: Boolean(liveStatus), view, modelId: liveStatus && liveStatus.model_id, snapshot: SNAPSHOT });
   const box = $("mode-banner");
   box.className = `banner ${banner.kind}`;
   box.textContent = banner.text;
@@ -141,7 +161,9 @@ async function runReplay(sc, button) {
   clearResult();
   setMode("replay");
   $("question").append(el("span", { className: "label", text: "Question" }), el("p", { text: sc.question }));
-  showState({ kind: "loading", title: "Replaying…", body: "Re-verifying the recorded answer against the source text." });
+  showState({ kind: "loading", title: "Replaying…", body: SNAPSHOT
+    ? "Loading the recorded answer (verified when this snapshot was built)."
+    : "Re-verifying the recorded answer against the source text." });
   let replay;
   try {
     replay = await api(`/api/scenarios/${encodeURIComponent(sc.id)}/replay`, { method: "POST", signal });
@@ -284,7 +306,7 @@ function showInspector(model) {
     if (ev.pdfUrl) {
       caption.append(" · ", el("a", { text: "official BCT PDF", attrs: { href: ev.pdfUrl, target: "_blank", rel: "noopener noreferrer" } }));
     }
-    block.append(caption);
+    block.append(caption, el("p", { className: "extraction-note", text: EXTRACTION_NOTE }));
     box.append(block);
   }
   box.append(el("p", { className: "hint", text: model.verifiedMeaning }), el("p", { className: "hint", text: model.lexicalNote }));
@@ -369,6 +391,7 @@ async function loadReviews(live) {
 const JSON_HEADERS = { Accept: "application/json", "Content-Type": "application/json" };
 
 async function loadLive() {
+  if (SNAPSHOT) return; // no server: live mode does not exist in the static snapshot
   let status;
   let docs;
   try {
@@ -388,7 +411,16 @@ async function loadLive() {
   }
   $("live-budget").textContent = budgetText(status.budget);
   $("live-run").addEventListener("click", runLive);
-  $("live-panel").hidden = false;
+  const panel = $("live-panel");
+  panel.hidden = false;
+  // Live-first layout: when this server can make paid calls, the live form comes before the recorded
+  // scenarios (moved in the DOM, so keyboard and reading order match the screen). Replay-only servers
+  // never reach this point, so their layout is unchanged.
+  const picker = panel.parentNode;
+  if (picker && picker.firstChild !== panel) {
+    picker.prepend(panel);
+    picker.classList.add("live-first");
+  }
 }
 
 function liveRequestProblem(question, documentIds, confirmed) {
@@ -475,6 +507,18 @@ async function loadEvaluation() {
     const box = $("eval-structural");
     box.replaceChildren();
     if (s) {
+      if (s.probe_origin) box.append(el("p", { className: "probe-origin", text: `${s.probe_origin} Recorded run: ${s.source_file}.` }));
+      const rows = probeRows(s);
+      if (rows.length) {
+        const body = el("tbody");
+        for (const r of rows) {
+          body.append(el("tr", { className: `probe ${r.kind}` }, el("td", { text: r.label }), el("td", { text: r.expected }),
+            el("td", {}, el("strong", { text: r.outcome })), el("td", { text: r.reason })));
+        }
+        box.append(el("div", { className: "eval-table-wrap" }, el("table", { className: "eval-table probe-table" },
+          el("thead", {}, el("tr", {}, el("th", { text: "Hand-authored test proposal" }), el("th", { text: "Expected" }),
+            el("th", { text: "Outcome" }), el("th", { text: "Reason" }))), body)));
+      }
       box.append(el("p", {
         text: `${s.probes} probes: ${s.accept_total} correct proposals accepted; ${s.reject_total} invalid proposals rejected; ${s.undetectable_published} of ${s.undetectable_total} semantically wrong proposals published as candidates.`,
       }), el("p", { className: "hint", text: s.undetectable_meaning }),
@@ -501,6 +545,23 @@ function showView(name) {
   if (name === "evaluation") loadEvaluation();
 }
 
+// First screen: one line on what the validators catch and what they cannot, from /api/evaluation only.
+async function loadChecks() {
+  const box = $("checks-summary");
+  try {
+    const line = checksSummary((await api("/api/evaluation")).structural);
+    if (!line) return;
+    const link = el("button", { className: "link", text: "See the evaluation", attrs: { type: "button" } });
+    link.addEventListener("click", () => showView("evaluation"));
+    box.replaceChildren(el("strong", { text: "Validation test (hand-authored proposals, not Muse output): " }),
+      `${line.caught} · `, el("span", { className: "missed", text: line.missed }), " — the reason human review is required. ", link);
+    box.hidden = false;
+  } catch {
+    box.hidden = true; // the line is optional; the evaluation view reports errors itself
+  }
+}
+
 document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => showView(t.dataset.view)));
 loadScenarios();
 loadLive();
+loadChecks();

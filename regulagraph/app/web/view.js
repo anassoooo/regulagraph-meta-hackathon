@@ -3,6 +3,9 @@
 // hardcodes evidence, pages or offsets.
 
 export const OFFICIAL_PDF_PREFIX = "https://www.bct.gov.tn/";
+// Quotations are located in the PDF's extracted text layer, which can differ visually from the printed page
+// (spacing, line breaks, words split by a space). Shown with every quotation; the quotation itself is untouched.
+export const EXTRACTION_NOTE = "Shown exactly as extracted from the PDF text layer: spacing, line breaks and split words can differ from the printed page. The official PDF is the reference.";
 
 export const STATE_MESSAGES = {
   ok: null,
@@ -273,7 +276,14 @@ export function primaryRelationship(replay) {
 // One banner for the whole page. `view` is what the user is looking at: "replay" (recorded
 // results, including the evaluation), "live-loading", "live" (a live result) or "live-error".
 // When the server can make paid calls the banner never says that no model is called.
-export function modeBanner({ liveEnabled = false, view = "replay", modelId = "Meta Muse" } = {}) {
+export function modeBanner({ liveEnabled = false, view = "replay", modelId = "Meta Muse", snapshot = null } = {}) {
+  if (snapshot) {
+    // Static snapshot: there is no server, so nothing was re-verified on this visit and no model can be called.
+    return {
+      kind: "snapshot",
+      text: `STATIC SNAPSHOT · Recorded Muse answers exported from commit ${snapshot.commit || "unknown"} on ${snapshot.builtAt || "unknown date"}. Quotations were verified against the official BCT PDF text when this snapshot was built, not re-verified in your browser. No model and no server are called.`,
+    };
+  }
   if (!liveEnabled) {
     return { kind: "replay", text: "REPLAY MODE · Recorded Muse answers, re-verified against the official PDF text. No model is called." };
   }
@@ -435,4 +445,85 @@ export function liveCallText(live) {
 export function budgetText(budget) {
   if (!budget) return "";
   return `Budget: ${budget.spent_usd.toFixed(4)} of ${budget.ceiling_usd.toFixed(2)} USD used (estimated) · ${budget.calls_used} of ${budget.max_calls} calls`;
+}
+
+// --- static snapshot (Sprint 5) ---------------------------------------------------------
+
+// The hosted snapshot has no server: the recorded API responses are static files next to the page.
+// Only the read-only replay and evaluation endpoints exist there; anything else (live mode, reviews)
+// maps to null and is never requested.
+export function snapshotApiPath(path, method = "GET") {
+  if (path === "/api/scenarios" && method === "GET") return "api/scenarios.json";
+  if (path === "/api/evaluation" && method === "GET") return "api/evaluation.json";
+  const m = /^\/api\/scenarios\/([A-Za-z0-9]{1,16})\/replay$/.exec(path);
+  if (m && method === "POST") return `api/scenarios/${m[1]}/replay.json`;
+  return null;
+}
+
+// --- structural probes (Sprint 5) -------------------------------------------------------
+
+export const PROBE_LABELS = {
+  gold: "Correct proposal (the case's annotated relationship and quotation)",
+  paraphrased_quote: "Quotation paraphrased instead of copied",
+  fabricated_target: "Invented target document",
+  reversed_direction: "Direction reversed (source and target swapped)",
+  quote_from_unrelated_provision: "Extra quotation from an unrelated provision",
+};
+
+export const REJECTION_REASON_LABELS = {
+  quote_not_found: "quotation not found in the cited provision",
+  unknown_target: "target is not among the documents given to the model",
+  no_source_evidence: "no quotation from the source provision",
+  quote_outside_related: "quotation lies outside the source and target provisions",
+};
+
+const EXPECTATION_ORDER = { accept: 0, reject: 1, undetectable: 2 };
+export const EXPECTATION_LABELS = {
+  accept: "Published",
+  reject: "Rejected",
+  undetectable: "Should be rejected; structural checks cannot tell",
+};
+
+function probeLabel(probe) {
+  if (PROBE_LABELS[probe]) return PROBE_LABELS[probe];
+  const wrong = /^wrong_type:(\w+)$/.exec(probe);
+  if (wrong) return `Wrong relation type (${wrong[1]}), real quotation`;
+  if (/^forbidden_\d+_with_real_quote$/.test(probe)) return "Relationship the case forbids, backed by a real quotation";
+  return probe;
+}
+
+// Rows for the probe table, grouped by display label, computed only from /api/evaluation.
+export function probeRows(structural) {
+  const groups = new Map();
+  for (const g of (structural && structural.by_probe) || []) {
+    const label = probeLabel(g.probe);
+    const row = groups.get(label) || { label, expectation: g.expectation, total: 0, published: 0, rejected: 0, reasons: {} };
+    row.total += g.total;
+    row.published += g.published;
+    row.rejected += g.rejected;
+    for (const [r, n] of Object.entries(g.rejection_reasons || {})) row.reasons[r] = (row.reasons[r] || 0) + n;
+    groups.set(label, row);
+  }
+  return [...groups.values()]
+    .sort((a, b) => (EXPECTATION_ORDER[a.expectation] ?? 3) - (EXPECTATION_ORDER[b.expectation] ?? 3))
+    .map((row) => ({
+      label: row.label,
+      expected: EXPECTATION_LABELS[row.expectation] || row.expectation,
+      outcome: row.expectation === "reject" ? `${row.rejected} of ${row.total} rejected`
+        : row.expectation === "undetectable" ? `${row.published} of ${row.total} published as candidates`
+          : `${row.published} of ${row.total} published`,
+      reason: Object.keys(row.reasons).map((r) => REJECTION_REASON_LABELS[r] || r).join("; ") || (row.expectation === "undetectable" ? "passes every structural check" : "—"),
+      kind: row.expectation === "undetectable" ? "limit" : row.expectation === "reject" ? "caught" : "ok",
+    }));
+}
+
+// One line for the first screen: what the validators catch and what they cannot.
+export function checksSummary(structural) {
+  const rows = (structural && structural.by_probe) || [];
+  if (!rows.length) return null;
+  const sum = (exp, field) => rows.filter((g) => g.expectation === exp).reduce((n, g) => n + g[field], 0);
+  return {
+    caught: `${sum("reject", "rejected")} of ${sum("reject", "total")} faulty proposals rejected`,
+    missed: `${sum("undetectable", "published")} of ${sum("undetectable", "total")} semantically wrong proposals still published`,
+  };
 }

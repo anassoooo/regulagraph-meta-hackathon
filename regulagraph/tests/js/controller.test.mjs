@@ -245,6 +245,8 @@ test("first screen: auto-open never overrides a scenario the user already picked
     if (url === "/api/scenarios") return new Promise((res) => { releaseScenarios = () => res(response(200, SCENARIOS)); });
     if (url === "/api/live/status") return Promise.resolve(response(200, { enabled: true, model_id: "m", budget: null }));
     if (url === "/api/live/documents") return Promise.resolve(response(200, []));
+    // The first-screen validation line reads the evaluation (GET, read-only); it is not a replay or a call.
+    if (url === "/api/evaluation") return Promise.resolve(response(200, { cases: [], structural: null }));
     requested.push(url);
     return new Promise(() => {});
   };
