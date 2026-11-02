@@ -10,7 +10,7 @@ RegulaGraph checks what Meta Muse proposes about relationships between public Ce
 4. finalization;
 5. a manually written evaluation set.
 
-Every relationship is published as **`candidate`**: nothing is ever confirmed. **Live Muse calls so far:** 7 requests, about $0.065 in total, all HTTP 200: a smoke test plus 5 distinct cases (E01, E05, E10, E12, E13; E13 was run twice). Under the current scorer (v2), 4 cases are validated and 1 (E10) was truncated. Historical per-run scores are kept separately and superseded. They are recorded in `eval/results/` and summarised in [eval/README.md](eval/README.md). There is no graph database and no deployment.
+Every relationship is published as **`candidate`**: nothing is ever confirmed. **Recorded evaluation calls:** 7 requests, about $0.065 in total, all HTTP 200: a smoke test plus 5 distinct cases (E01, E05, E10, E12, E13; E13 was run twice). Local live mode made 4 further calls by 2026-11-02 (about $0.051 in the local ledger, including the demo video's call); they are not part of the evaluation. Under the current scorer (v2), 4 cases are validated and 1 (E10) was truncated. Historical per-run scores are kept separately and superseded. They are recorded in `eval/results/` and summarised in [eval/README.md](eval/README.md). There is no graph database and no deployment.
 
 ## Layout
 
