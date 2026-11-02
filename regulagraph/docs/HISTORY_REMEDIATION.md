@@ -1,6 +1,15 @@
-# Git history remediation: proposal (not executed)
+# Git history remediation: decision and record
 
-Status: **proposal for PM decision.** No history has been rewritten, no branch deleted and no tag changed.
+Status: **decided: Option A** (PM decision, 2026-11-02). No history has been rewritten, no branch deleted and no tag changed.
+
+## Decision
+
+For the hackathon submission the PM chose **Option A**:
+- **Git history is preserved.** The historical recordings described below stay reachable through earlier commits, branches and pull-request refs.
+- **Substantial BCT text is removed from the current public files.** The release branch contains none of the affected versions; the six files on `main` are replaced when the release pull request is merged.
+- **Unresolved questions are documented, not settled.** Whether BCT circulars fall under the official-texts exemption, and whether the historical copies are permitted reuse, has not been confirmed by the BCT, a court or counsel. This decision is **not a legal clearance**. If the BCT or another rights holder raises a concern, options B and C below remain available. A private local backup of all refs was made for that case; its checksum has not yet been verified by the owner.
+
+The analysis that led to the decision follows.
 
 ## What is in history
 
@@ -109,7 +118,7 @@ This section records primary sources. It is not legal advice and not a legal cle
 - **Effect:** stops new exposure immediately and can be undone.
 - **Cost:** the hackathon requires a public repository, so this is only a holding step before A, B or C.
 
-## Recommendation
+## Recommendation (before the decision)
 
 1. **Get the PM's decision now.** The cost of B or C rises once judges clone the repository: currently 0 forks.
 2. **If the text must go:** B followed by a GitHub Support request is the most complete. It keeps one repository and the author-dated timeline. Schedule it before submission, and re-run Sol's review on the rewritten SHAs.

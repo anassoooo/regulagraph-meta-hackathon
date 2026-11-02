@@ -68,7 +68,7 @@ Costs are estimated from the published prices ($1.25 / $4.25 per million input /
 | `live_20261030T153355Z.json` | E05 | 200 | stop | 3,834 | 936 (762) | 8.0 s | $0.009 |
 | `live_20261030T153423Z.json` | E10 | 200 | **length** | 4,511 | 2,048 (2,046) | 9.6 s | $0.014 |
 
-7 requests, about **$0.065** in total. Calls after the smoke test used `reasoning_effort=low` and a 2,048-token cap.
+These 7 requests, about **$0.065**, are only the recorded smoke test and evaluation runs above, not total Meta API usage: local live mode made further calls that are not part of the evaluation (see the root README). Calls after the smoke test used `reasoning_effort=low` and a 2,048-token cap.
 
 #### Source text removed from the recordings (2026-11-01)
 

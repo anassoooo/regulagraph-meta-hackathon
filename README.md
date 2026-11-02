@@ -5,7 +5,7 @@ Meta Muse proposes how circulars of the Banque Centrale de Tunisie (BCT) relate 
 
 Built for the Meta Global AI Developer Hackathon (2026-10-26 to 2026-11-04). The application lives in [`regulagraph/`](regulagraph/README.md), which has the full technical documentation.
 
-**Demo video:** _link to be added_ (2 min 28 s; the real application with one genuine live Muse call, narrated by a synthetic voice).
+**Demo video:** _pending: the public link will be added once the video is uploaded._ (2 min 28 s; the real application with one genuine live Muse call, narrated by a synthetic voice.)
 
 ## The problem
 
@@ -27,23 +27,21 @@ In regulatory work, an answer that cannot be traced to the exact source text is 
 4. **Validation by code:**
    - every quotation must be found verbatim inside the provision it cites;
    - IDs must be ones the model was shown;
-   - the source provision must contain supporting text;
+   - at least one quotation must be verified inside the source provision;
    - quotes from unrelated provisions are rejected.
    One failed check rejects the whole proposal.
 5. **Publication:** what survives is published as an **AI-generated, unconfirmed candidate**, with the quotation, page, character offsets and a link to the official PDF. Nothing in the system can mark a relationship as confirmed.
 6. **Review:** in local live mode a reviewer can accept, reject or ask for more evidence. Decisions are stored separately from the report and never change its status.
 
-### Why this is not a basic RAG chatbot
+### What makes it more than question answering over documents
 
-It does use retrieval, but the output and the checks are different:
+RegulaGraph uses retrieval, but what it produces and how it checks it are specific to regulatory relationship investigation:
 
-| | Typical RAG chatbot | RegulaGraph |
-|---|---|---|
-| Output | Free-text answer | Typed relationships between identified provisions (a graph), plus rejected proposals and their reasons |
-| Citations | Links or passages the answer may or may not rely on | Every quotation re-located at exact page and character offsets in the cited provision; otherwise the proposal is rejected |
-| Failure handling | The answer is shown anyway | Failed proposals are rejected and listed; a truncated model response is reported, not retried or patched |
-| Status of the result | Presented as the answer | Always an unconfirmed candidate; human review is recorded separately |
-| Evaluation | Usually none | 13 hand-written cases including 6 negative ones, plus probes showing what the validators cannot catch |
+- **Typed relationships, not prose:** the output is a graph of proposed relationships (`repeals`, `supersedes`, `amends`, `implements`, `references`, `conflicts_with`) between identified provisions, not a free-text answer.
+- **Every quotation located:** each quotation must be found verbatim at exact page and character offsets inside the provision it cites, or the whole proposal is rejected.
+- **Rejections are shown:** rejected proposals are listed with their reasons; a truncated model response is reported as truncated, not retried or patched.
+- **Nothing is confirmed by the system:** every published relationship stays an AI-generated candidate; human review is recorded separately and never changes that status.
+- **Measured limits:** 13 hand-written cases (6 of them negative) plus hand-authored probes that show what the validators cannot catch.
 
 ### What the checks prove, and what they do not
 
@@ -96,7 +94,7 @@ Muse does the one step the code cannot: reading French regulatory text and propo
 
 | Mode | Where | Model calls | Evidence check |
 |---|---|---|---|
-| **Hosted static snapshot** | Link to be added after PM approval | None | Done once, when the snapshot was built. The page says so, with the build commit and date. |
+| **Hosted static snapshot** | _Pending: not yet published; the link will be added once it is live_ | None | Done once, when the snapshot was built. The page says so, with the build commit and date. |
 | **Local replay** (default) | `python scripts/demo.py` | None | On every replay, against the local PDFs |
 | **Local live mode** | `python scripts/demo.py --live --confirm-paid-calls` | One paid call per run, with budget guard | On every run |
 
